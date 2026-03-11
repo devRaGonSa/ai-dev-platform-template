@@ -1,8 +1,6 @@
 Write-Host "Codex worker started..."
 
 $lockFile = "ai/worker.lock"
-$maxTasks = 3
-$processedTasks = 0
 
 while ($true) {
 
@@ -32,30 +30,32 @@ while ($true) {
 
         if ($codexExitCode -eq 0) {
             Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | success"
+
+            $gitChanges = git status --porcelain
+            if ($gitChanges) {
+                Write-Host "Changes detected. Committing and pushing..."
+                git add -A
+                git commit -m "chore: process pending tasks"
+                if ($LASTEXITCODE -eq 0) {
+                    git push
+                }
+                else {
+                    Write-Host "No commit created. Skipping push."
+                }
+            }
+            else {
+                Write-Host "No changes detected. Skipping commit and push."
+            }
         }
         else {
             Write-Host "Codex run failed with exit code $codexExitCode. Continuing next cycle."
             Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | failed($codexExitCode)"
         }
-        Write-Host "Running integration tests..."
-
-        powershell -ExecutionPolicy Bypass -File scripts/run-integration-tests.ps1
-        $processedTasks++
-
-        if ($processedTasks -ge $maxTasks) {
-            Write-Host "Max tasks reached. Waiting for next cycle."
-            Start-Sleep -Seconds 300
-            $processedTasks = 0
-        }
 
         Remove-Item $lockFile
     }
     else {
-
-		Write-Host "No tasks found. Running repository health review..."
-
-		codex "Review the repository using ai/orchestrator/repo-reviewer.md and create improvement tasks if needed."
-
+        Write-Host "No pending tasks found."
 	}
 
     Start-Sleep -Seconds 30

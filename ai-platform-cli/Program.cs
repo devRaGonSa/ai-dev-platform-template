@@ -129,11 +129,30 @@ static void RunDoctor()
 
 static bool IsCodexAvailable()
 {
+    if (RunCommand("codex", "--help"))
+        return true;
+
+    if (OperatingSystem.IsWindows())
+    {
+        if (RunCommand("cmd.exe", "/c codex --help"))
+            return true;
+
+        return RunCommand("where.exe", "codex");
+    }
+
+    if (RunCommand("/bin/sh", "-lc \"codex --help\""))
+        return true;
+
+    return RunCommand("which", "codex");
+}
+
+static bool RunCommand(string fileName, string arguments)
+{
     try
     {
         var process = new Process();
-        process.StartInfo.FileName = "codex";
-        process.StartInfo.Arguments = "--version";
+        process.StartInfo.FileName = fileName;
+        process.StartInfo.Arguments = arguments;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.RedirectStandardOutput = true;

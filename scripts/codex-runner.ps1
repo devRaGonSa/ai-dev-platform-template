@@ -25,11 +25,18 @@ while ($true) {
         New-Item $lockFile -ItemType File | Out-Null
 
         $startTime = Get-Date
-        codex --auto "Follow the workflow defined in AGENTS.md and process the pending tasks."
+        codex "Follow the workflow defined in AGENTS.md and process the pending tasks."
+        $codexExitCode = $LASTEXITCODE
         $endTime = Get-Date
         $duration = ($endTime - $startTime).TotalSeconds
 
-        Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | success"
+        if ($codexExitCode -eq 0) {
+            Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | success"
+        }
+        else {
+            Write-Host "Codex run failed with exit code $codexExitCode. Continuing next cycle."
+            Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | failed($codexExitCode)"
+        }
         Write-Host "Running integration tests..."
 
         powershell -ExecutionPolicy Bypass -File scripts/run-integration-tests.ps1
@@ -47,7 +54,7 @@ while ($true) {
 
 		Write-Host "No tasks found. Running repository health review..."
 
-		codex --auto "Review the repository using ai/orchestrator/repo-reviewer.md and create improvement tasks if needed."
+		codex "Review the repository using ai/orchestrator/repo-reviewer.md and create improvement tasks if needed."
 
 	}
 

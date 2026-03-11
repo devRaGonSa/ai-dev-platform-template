@@ -31,6 +31,14 @@ while ($true) {
         if ($codexExitCode -eq 0) {
             Add-Content ai/system-metrics.md "$(Get-Date) | task-run | $duration sec | success"
 
+            if (Test-Path "scripts/run-integration-tests.ps1") {
+                Write-Host "Running integration tests..."
+                powershell -ExecutionPolicy Bypass -File scripts/run-integration-tests.ps1
+            }
+            else {
+                Write-Host "No integration tests configured."
+            }
+
             $gitChanges = git status --porcelain
             if ($gitChanges) {
                 Write-Host "Changes detected. Committing and pushing..."

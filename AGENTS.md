@@ -133,11 +133,15 @@ If a task modifies:
 - services interacting with storage
 - MinIO or external services
 
-Run integration tests:
+Run integration tests only if the script exists:
 
 scripts/run-integration-tests.ps1
 
-Only mark the task completed if integration tests succeed.
+If it does not exist, skip integration tests and log:
+
+No integration tests configured.
+
+Only mark the task completed if configured integration tests succeed.
 
 ## File Change Validation
 

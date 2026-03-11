@@ -1,0 +1,36 @@
+﻿name: Codex Worker
+
+on:
+  push:
+    paths:
+      - 'ai/tasks/pending/**'
+
+jobs:
+  run-codex-worker:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: Run Codex Worker
+        run: |
+          codex --auto "Follow the workflow defined in AGENTS.md and process the pending tasks."
+
+      - name: Push changes
+        run: |
+          git config user.name "codex-worker"
+          git config user.email "codex@automation.local"
+          git add .
+          git commit -m "chore: automated task execution" || echo "No changes"
+          git push

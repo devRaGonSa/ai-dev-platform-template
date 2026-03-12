@@ -214,6 +214,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | Command | What it does | Status |
 |---|---|---|
 | `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
+| `ai-platform refresh` | Detects or refreshes managed platform artifacts from a template source | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Prints a planning guidance message | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -243,6 +244,25 @@ At the end of a successful run, `init` prints a compact install summary showing:
 - the minimal validation that was applied
 - the recommended next step
 
+`ai-platform refresh` is conservative in v1:
+
+- it uses a small explicit set of managed platform artifacts
+- it runs as a dry-run by default
+- it applies changes only when you pass `--apply`
+- it updates only managed platform artifacts and does not attempt merge logic
+- it creates or updates managed artifacts only; it does not delete artifacts
+- it does not create commits
+- it does not create backups in v1
+- like `init`, it validates that the chosen template source is compatible before making changes
+
+Both `init` and `refresh` now distinguish between common source failures more clearly, including:
+
+- URL not found (`404`)
+- network or host reachability failures
+- protected or unauthorized sources
+- invalid or corrupt ZIP files
+- ZIP files that download successfully but are not compatible platform templates
+
 ---
 
 ## 12. Installation into another repository
@@ -261,6 +281,46 @@ ai-platform init
 ai-platform doctor
 ```
 
+To check whether managed platform artifacts are out of date:
+
+```bash
+ai-platform refresh
+```
+
+To apply the refresh:
+
+```bash
+ai-platform refresh --apply
+```
+
+Like `init`, `refresh` also supports an explicit ZIP source argument or `AI_PLATFORM_TEMPLATE_ZIP` when you need to point at a different compatible template source.
+
+For `refresh`, source precedence is:
+
+1. `--source <zip-url>`
+2. positional ZIP argument (`ai-platform refresh <zip-url>`)
+3. `AI_PLATFORM_TEMPLATE_ZIP`
+4. `ai-platform.json` -> `templateSourceZip`
+5. built-in default
+
+To declare a persistent consumer source, set `templateSourceZip` in `ai-platform.json`, for example:
+
+```json
+{
+  "templateSourceZip": "https://example.com/my-template.zip"
+}
+```
+
+Examples:
+
+```bash
+ai-platform refresh --apply --source https://example.com/my-template.zip
+```
+
+```bash
+ai-platform refresh https://example.com/my-template.zip
+```
+
 You can also override the source:
 
 ```bash
@@ -271,6 +331,10 @@ or:
 
 ```bash
 AI_PLATFORM_TEMPLATE_ZIP=https://example.com/my-template.zip ai-platform init
+```
+
+```bash
+AI_PLATFORM_TEMPLATE_ZIP=https://example.com/my-template.zip ai-platform refresh
 ```
 
 ### Option B: Script-based bootstrap
@@ -343,7 +407,9 @@ The root file `ai-platform.json` is a small, explicit configuration file for sta
 Today it covers only a few things that are already useful:
 
 - `platformVersion`: lightweight template/config version marker
+- `templateSourceZip`: optional persistent ZIP source that `refresh` can use when no more explicit source is provided
 - `requiredTemplatePaths`: minimum paths a compatible template source must contain
+- `managedArtifacts`: small explicit list of platform-owned files that `refresh` may update
 - `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
 - `worker.lockFile`: current lock file path convention used by the worker
 - `worker.pollIntervalSeconds`: polling interval for the worker loop
@@ -357,6 +423,15 @@ What it does not cover yet:
 
 The current CLI already reads this file for minimal compatibility checks and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
 
+In refresh v1, the managed artifacts are intentionally limited to a small explicit set:
+
+- `ai-platform.json`
+- `AGENTS.md`
+- `scripts/codex-runner.ps1`
+- `.github/workflows/codex-worker.yml`
+
+The `templateSourceZip` setting is optional. If you do not set it, `refresh` falls back to `--source`, positional argument, `AI_PLATFORM_TEMPLATE_ZIP`, or the built-in default according to the precedence described above.
+
 ---
 
 ## 15. Current limitations
@@ -365,6 +440,7 @@ The current CLI already reads this file for minimal compatibility checks and doc
 - The CLI is implemented in .NET and `init` still defaults to this repository's ZIP source unless overridden.
 - `init` validates only a minimal compatible structure from `ai-platform.json`; it does not verify every optional file or workflow asset.
 - The installer script still contains embedded fallback content, so some divergence risk remains even though it now prefers real repository files for the most sensitive artifacts when available.
+- `refresh` updates only a small set of managed platform artifacts and does not attempt backups or merge customizations.
 - Git automation assumes a repository where automated `pull`, `commit`, and `push` behavior is acceptable.
 - `scripts/run-integration-tests.ps1` is intentionally a placeholder until adapted by the target repository.
 - GitHub automation is provided as a direct Codex CI flow, not as a full execution of the local PowerShell worker, and may require repository-specific permissions or policy changes.
@@ -409,6 +485,7 @@ These are future improvements, not claims about current behavior:
 
 ```bash
 ai-platform init
+ai-platform refresh
 ai-platform doctor
 ai-platform run
 ai-platform plan

@@ -151,11 +151,18 @@ $templateFiles = @{
     "ai-platform.json" = @'
 {
   "platformVersion": "1.0",
+  "templateSourceZip": "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
   "requiredTemplatePaths": [
     "ai",
     "scripts",
     "AGENTS.md",
     "ai-platform.json"
+  ],
+  "managedArtifacts": [
+    "ai-platform.json",
+    "AGENTS.md",
+    "scripts/codex-runner.ps1",
+    ".github/workflows/codex-worker.yml"
   ],
   "taskPaths": {
     "pending": "ai/tasks/pending",

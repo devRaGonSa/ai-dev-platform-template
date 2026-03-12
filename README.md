@@ -115,7 +115,7 @@ The following parts are reusable but still opinionated:
 
 - `scripts/codex-runner.ps1` uses PowerShell and an infinite polling loop
 - the worker performs `git pull` and may commit/push changes automatically
-- `.github/workflows/codex-worker.yml` assumes GitHub Actions and Codex CLI installation through npm
+- `.github/workflows/codex-worker.yml` uses a direct Codex CI flow instead of the local PowerShell worker
 - `ai-platform-cli/Program.cs` uses a .NET CLI and defaults to downloading this template from a GitHub ZIP source
 
 These are current conventions of the template, not universal requirements for all repositories or stacks.
@@ -200,6 +200,11 @@ Notes:
 - if your repository should not auto-push, adapt the script or workflow
 - the integration test hook must be configured by each consumer repository if real integration tests are needed
 
+The local worker and the GitHub workflow are intentionally not identical:
+
+- `scripts/codex-runner.ps1` is the local PowerShell worker
+- `.github/workflows/codex-worker.yml` currently runs Codex directly in CI as a lightweight automation path
+
 ---
 
 ## 11. CLI commands
@@ -273,6 +278,17 @@ AI_PLATFORM_TEMPLATE_ZIP=https://example.com/my-template.zip ai-platform init
 ```powershell
 powershell -ExecutionPolicy Bypass -File ./install-ai-platform.ps1
 ```
+
+The PowerShell installer is a bootstrap script that seeds a bundled snapshot of the platform files. It is useful when you want a local, file-based installation path without relying on the CLI download flow.
+
+When `install-ai-platform.ps1` runs from a valid checkout of the template source repository, it now prefers copying a few sensitive artifacts from the real files next to the script:
+
+- `ai-platform.json`
+- `AGENTS.md`
+- `scripts/codex-runner.ps1`
+- `.github/workflows/codex-worker.yml`
+
+If those real source files are not available, the installer falls back to its embedded snapshot content and says so in its output.
 
 ### After installation
 
@@ -348,9 +364,10 @@ The current CLI already reads this file for minimal compatibility checks and doc
 - The worker and installer experience are PowerShell-first.
 - The CLI is implemented in .NET and `init` still defaults to this repository's ZIP source unless overridden.
 - `init` validates only a minimal compatible structure from `ai-platform.json`; it does not verify every optional file or workflow asset.
+- The installer script still contains embedded fallback content, so some divergence risk remains even though it now prefers real repository files for the most sensitive artifacts when available.
 - Git automation assumes a repository where automated `pull`, `commit`, and `push` behavior is acceptable.
 - `scripts/run-integration-tests.ps1` is intentionally a placeholder until adapted by the target repository.
-- GitHub automation is provided for the current workflow, but may require repository-specific permissions or policy changes.
+- GitHub automation is provided as a direct Codex CI flow, not as a full execution of the local PowerShell worker, and may require repository-specific permissions or policy changes.
 
 ---
 

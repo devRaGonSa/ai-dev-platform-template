@@ -82,6 +82,26 @@ foreach ($dir in $directories) {
 }
 
 $templateFiles = @{
+    "ai-platform.json" = @'
+{
+  "platformVersion": "1.0",
+  "requiredTemplatePaths": [
+    "ai",
+    "scripts",
+    "AGENTS.md",
+    "ai-platform.json"
+  ],
+  "taskPaths": {
+    "pending": "ai/tasks/pending",
+    "inProgress": "ai/tasks/in-progress",
+    "done": "ai/tasks/done"
+  },
+  "worker": {
+    "lockFile": "ai/worker.lock",
+    "pollIntervalSeconds": 30
+  }
+}
+'@
     "ai/task-template.md" = @'
 # TASK-XXX
 

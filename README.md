@@ -59,6 +59,7 @@ Task lifecycle:
 
 ```text
 .
+|-- ai-platform.json
 |-- AGENTS.md
 |-- README.md
 |-- install-ai-platform.ps1
@@ -98,6 +99,7 @@ Task lifecycle:
 The following parts are intentionally generic and designed to be reused with minimal editing:
 
 - task folder lifecycle under `ai/tasks/`
+- the minimal platform config in `ai-platform.json`
 - the task template in `ai/task-template.md`
 - repository context and architecture seed docs
 - orchestrator guidance for planning, review, and component discovery
@@ -163,6 +165,7 @@ Request
 
 The following files are part of the operating contract of the template:
 
+- `ai-platform.json`
 - `AGENTS.md`
 - `ai/repo-context.md`
 - `ai/architecture-index.md`
@@ -180,14 +183,16 @@ Implemented in `scripts/codex-runner.ps1`.
 Current behavior:
 
 1. Runs in a polling loop
-2. Uses a lock file at `ai/worker.lock`
-3. Removes stale locks when the owning process is no longer active
-4. Runs `git pull`
-5. Detects pending Markdown tasks
-6. Invokes Codex with the AGENTS workflow instruction
-7. Appends execution metrics to `ai/system-metrics.md`
-8. Calls `scripts/run-integration-tests.ps1` if it exists
-9. Commits and pushes when changes are present
+2. Uses the lock file path from `ai-platform.json` (`worker.lockFile`) with fallback to `ai/worker.lock`
+3. Reads the pending task directory from `ai-platform.json` (`taskPaths.pending`) with fallback to `ai/tasks/pending`
+4. Reads the polling interval from `ai-platform.json` (`worker.pollIntervalSeconds`) with fallback to `30`
+5. Removes stale locks when the owning process is no longer active
+6. Runs `git pull`
+7. Detects pending Markdown tasks
+8. Invokes Codex with the AGENTS workflow instruction
+9. Appends execution metrics to `ai/system-metrics.md`
+10. Calls `scripts/run-integration-tests.ps1` if it exists
+11. Commits and pushes when changes are present
 
 Notes:
 
@@ -220,8 +225,18 @@ Before copying files, `init` now validates that the downloaded template contains
 - `ai/`
 - `scripts/`
 - `AGENTS.md`
+- `ai-platform.json`
 
 If the ZIP does not contain that minimum structure, installation stops with a clear compatibility error instead of reporting a successful install.
+
+At the end of a successful run, `init` prints a compact install summary showing:
+
+- the source used
+- whether the source came from the command argument, `AI_PLATFORM_TEMPLATE_ZIP`, or the built-in default
+- which top-level platform items were copied
+- which items were skipped because they already existed
+- the minimal validation that was applied
+- the recommended next step
 
 ---
 
@@ -262,10 +277,11 @@ powershell -ExecutionPolicy Bypass -File ./install-ai-platform.ps1
 ### After installation
 
 1. Review and adapt `AGENTS.md`
-2. Review and adapt `ai/repo-context.md`
-3. Review and adapt `ai/architecture-index.md`
-4. Adjust validation commands for the target repository
-5. Replace the integration test placeholder if integration tests are needed
+2. Review `ai-platform.json` and keep its paths aligned with your repository conventions
+3. Review and adapt `ai/repo-context.md`
+4. Review and adapt `ai/architecture-index.md`
+5. Adjust validation commands for the target repository
+6. Replace the integration test placeholder if integration tests are needed
 
 The template is meant to give you a starting point, not to eliminate repository-specific setup.
 
@@ -297,18 +313,41 @@ This template no longer assumes that every repository will use ASP.NET Core MVC,
 
 ---
 
-## 14. Current limitations
+## 14. Minimal platform config
+
+The root file `ai-platform.json` is a small, explicit configuration file for stable platform conventions.
+
+Today it covers only a few things that are already useful:
+
+- `platformVersion`: lightweight template/config version marker
+- `requiredTemplatePaths`: minimum paths a compatible template source must contain
+- `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
+- `worker.lockFile`: current lock file path convention used by the worker
+- `worker.pollIntervalSeconds`: polling interval for the worker loop
+
+What it does not cover yet:
+
+- repository stack or framework type
+- multiple profiles or template variants
+- validation command definitions
+- workflow policy beyond a few stable path conventions
+
+The current CLI already reads this file for minimal compatibility checks and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
+
+---
+
+## 15. Current limitations
 
 - The worker and installer experience are PowerShell-first.
 - The CLI is implemented in .NET and `init` still defaults to this repository's ZIP source unless overridden.
-- `init` validates only a minimal compatible structure; it does not verify every optional file or workflow asset.
+- `init` validates only a minimal compatible structure from `ai-platform.json`; it does not verify every optional file or workflow asset.
 - Git automation assumes a repository where automated `pull`, `commit`, and `push` behavior is acceptable.
 - `scripts/run-integration-tests.ps1` is intentionally a placeholder until adapted by the target repository.
 - GitHub automation is provided for the current workflow, but may require repository-specific permissions or policy changes.
 
 ---
 
-## 15. Best practices
+## 16. Best practices
 
 - Keep tasks narrow, explicit, and validation-driven.
 - Use `Files to Read First` to constrain discovery work.
@@ -319,7 +358,7 @@ This template no longer assumes that every repository will use ASP.NET Core MVC,
 
 ---
 
-## 16. Suggested workflow for large features
+## 17. Suggested workflow for large features
 
 1. Create a dedicated branch using the repository's branch naming conventions
 2. Use orchestrator guidance to generate a small task set in `ai/tasks/pending`
@@ -330,13 +369,14 @@ This template no longer assumes that every repository will use ASP.NET Core MVC,
 
 ---
 
-## 17. Future improvements
+## 18. Future improvements
 
 These are future improvements, not claims about current behavior:
 
 - provide a safer update story for existing installs
 - offer alternative worker entrypoints beyond PowerShell
 - improve validation and doctor diagnostics for more repository types
+- move more stable conventions from hardcoded defaults into `ai-platform.json`
 - support richer profiles for different repository architectures
 
 ---

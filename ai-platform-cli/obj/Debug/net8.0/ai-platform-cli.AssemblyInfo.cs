@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ai-platform-cli")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fea73b036aec34e2cc93af433d3956c36b49352c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f88fcdc9c06de68a1c1f2abbf9c0b4f81f636e9c")]
 [assembly: System.Reflection.AssemblyProductAttribute("ai-platform-cli")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ai-platform-cli")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

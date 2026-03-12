@@ -289,6 +289,13 @@ The template is meant to give you a starting point, not to eliminate repository-
 
 `ai-platform doctor` validates the local repository after installation.
 
+`doctor` also reports whether `ai-platform.json` was:
+
+- loaded successfully
+- missing and replaced with built-in defaults
+- invalid and replaced with built-in defaults
+- loaded partially, with fallback defaults applied to specific keys
+
 `ai-platform init` validates the downloaded source before copying files.
 
 Together, these checks cover two different failure modes:

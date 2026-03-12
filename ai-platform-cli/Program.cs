@@ -48,8 +48,8 @@ static void InstallPlatform(string[] commandArgs)
     ZipFile.ExtractToDirectory(tempZip, extractPath);
 
     var source = ResolveExtractedSourceDirectory(extractPath);
-    var sourceConfig = LoadPlatformConfig(source);
-    ValidateTemplateStructure(source, repoZip, sourceConfig.RequiredTemplatePaths);
+    var sourceConfigResult = LoadPlatformConfig(source);
+    ValidateTemplateStructure(source, repoZip, sourceConfigResult.Config.RequiredTemplatePaths);
 
     CopyIfMissing(Path.Combine(source, "ai"), "ai", installSummary);
     CopyIfMissing(Path.Combine(source, "scripts"), "scripts", installSummary);
@@ -57,7 +57,7 @@ static void InstallPlatform(string[] commandArgs)
     CopyIfMissing(Path.Combine(source, "AGENTS.md"), "AGENTS.md", installSummary);
     CopyIfMissing(Path.Combine(source, "ai-platform.json"), "ai-platform.json", installSummary);
 
-    PrintInstallSummary(repoZip, sourceKind, sourceConfig.RequiredTemplatePaths, installSummary);
+    PrintInstallSummary(repoZip, sourceKind, sourceConfigResult.Config.RequiredTemplatePaths, installSummary);
 }
 
 static (string Source, string SourceKind) ResolveTemplateZipSource(string[] commandArgs, string defaultRepoZip)
@@ -160,7 +160,8 @@ static void RunScript(string script)
 
 static void RunDoctor()
 {
-    var config = LoadPlatformConfig(Directory.GetCurrentDirectory());
+    var configResult = LoadPlatformConfig(Directory.GetCurrentDirectory());
+    var config = configResult.Config;
     var checks = new List<(string Label, bool Passed, string Help)>
     {
         ("ai-platform.json", File.Exists("ai-platform.json"), "Run: ai-platform init to install the platform config file."),
@@ -176,6 +177,9 @@ static void RunDoctor()
 
     Console.WriteLine("AI Platform Doctor");
     Console.WriteLine("");
+    Console.WriteLine($"Config status: {configResult.Status}");
+    if (configResult.FallbackKeys.Count > 0)
+        Console.WriteLine($"Config defaults applied: {string.Join(", ", configResult.FallbackKeys)}");
     Console.WriteLine($"Platform config version: {config.PlatformVersion}");
     Console.WriteLine($"Configured worker lock file: {config.Worker.LockFile}");
     Console.WriteLine("");
@@ -195,11 +199,14 @@ static void RunDoctor()
         Console.WriteLine("Platform is not ready. Fix missing items and run `ai-platform doctor` again.");
 }
 
-static PlatformConfig LoadPlatformConfig(string rootPath)
+static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
     if (!File.Exists(configPath))
-        return PlatformConfig.CreateDefault();
+        return new PlatformConfigLoadResult(
+            PlatformConfig.CreateDefault(),
+            "missing ai-platform.json (using built-in defaults)",
+            PlatformConfig.GetAllFallbackKeys());
 
     try
     {
@@ -209,11 +216,18 @@ static PlatformConfig LoadPlatformConfig(string rootPath)
             PropertyNameCaseInsensitive = true
         });
 
-        return PlatformConfig.Normalize(config);
+        var normalized = PlatformConfig.Normalize(config, out var fallbackKeys);
+        var status = fallbackKeys.Count == 0
+            ? "loaded ai-platform.json"
+            : "loaded ai-platform.json with fallback defaults";
+        return new PlatformConfigLoadResult(normalized, status, fallbackKeys);
     }
     catch
     {
-        return PlatformConfig.CreateDefault();
+        return new PlatformConfigLoadResult(
+            PlatformConfig.CreateDefault(),
+            "invalid ai-platform.json (using built-in defaults)",
+            PlatformConfig.GetAllFallbackKeys());
     }
 }
 
@@ -327,25 +341,73 @@ sealed class PlatformConfig
         };
     }
 
-    public static PlatformConfig Normalize(PlatformConfig? config)
+    public static PlatformConfig Normalize(PlatformConfig? config, out List<string> fallbackKeys)
     {
+        fallbackKeys = new List<string>();
         var normalized = config ?? CreateDefault();
         var defaults = CreateDefault();
 
         if (normalized.RequiredTemplatePaths.Count == 0)
+        {
             normalized.RequiredTemplatePaths = defaults.RequiredTemplatePaths;
+            fallbackKeys.Add("requiredTemplatePaths");
+        }
 
-        normalized.TaskPaths ??= defaults.TaskPaths;
-        normalized.TaskPaths.Pending ??= defaults.TaskPaths.Pending;
-        normalized.TaskPaths.InProgress ??= defaults.TaskPaths.InProgress;
-        normalized.TaskPaths.Done ??= defaults.TaskPaths.Done;
+        if (normalized.TaskPaths is null)
+        {
+            normalized.TaskPaths = defaults.TaskPaths;
+            fallbackKeys.Add("taskPaths");
+        }
+        else
+        {
+            if (normalized.TaskPaths.Pending is null)
+            {
+                normalized.TaskPaths.Pending = defaults.TaskPaths.Pending;
+                fallbackKeys.Add("taskPaths.pending");
+            }
 
-        normalized.Worker ??= defaults.Worker;
-        normalized.Worker.LockFile ??= defaults.Worker.LockFile;
+            if (normalized.TaskPaths.InProgress is null)
+            {
+                normalized.TaskPaths.InProgress = defaults.TaskPaths.InProgress;
+                fallbackKeys.Add("taskPaths.inProgress");
+            }
+
+            if (normalized.TaskPaths.Done is null)
+            {
+                normalized.TaskPaths.Done = defaults.TaskPaths.Done;
+                fallbackKeys.Add("taskPaths.done");
+            }
+        }
+
+        if (normalized.Worker is null)
+        {
+            normalized.Worker = defaults.Worker;
+            fallbackKeys.Add("worker");
+        }
+        else if (normalized.Worker.LockFile is null)
+        {
+            normalized.Worker.LockFile = defaults.Worker.LockFile;
+            fallbackKeys.Add("worker.lockFile");
+        }
 
         normalized.PlatformVersion ??= defaults.PlatformVersion;
+        if (config?.PlatformVersion is null)
+            fallbackKeys.Add("platformVersion");
 
         return normalized;
+    }
+
+    public static List<string> GetAllFallbackKeys()
+    {
+        return new List<string>
+        {
+            "platformVersion",
+            "requiredTemplatePaths",
+            "taskPaths.pending",
+            "taskPaths.inProgress",
+            "taskPaths.done",
+            "worker.lockFile"
+        };
     }
 }
 
@@ -365,4 +427,18 @@ sealed class InstallSummary
 {
     public List<string> Created { get; } = new();
     public List<string> Skipped { get; } = new();
+}
+
+sealed class PlatformConfigLoadResult
+{
+    public PlatformConfigLoadResult(PlatformConfig config, string status, List<string> fallbackKeys)
+    {
+        Config = config;
+        Status = status;
+        FallbackKeys = fallbackKeys;
+    }
+
+    public PlatformConfig Config { get; }
+    public string Status { get; }
+    public List<string> FallbackKeys { get; }
 }

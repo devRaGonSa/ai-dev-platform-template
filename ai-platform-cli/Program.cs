@@ -2,11 +2,12 @@
 using System.IO.Compression;
 
 var command = args.Length > 0 ? args[0] : "";
+var commandArgs = args.Skip(1).ToArray();
 
 switch (command)
 {
     case "init":
-        InstallPlatform();
+        InstallPlatform(commandArgs);
         break;
 
     case "run":
@@ -26,13 +27,14 @@ switch (command)
         break;
 }
 
-static void InstallPlatform()
+static void InstallPlatform(string[] commandArgs)
 {
-    var repoZip = "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip";
+    const string defaultRepoZip = "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip";
+    var repoZip = ResolveTemplateZipSource(commandArgs, defaultRepoZip);
     var tempZip = Path.Combine(Path.GetTempPath(), "ai-platform.zip");
     var extractPath = Path.Combine(Path.GetTempPath(), "ai-platform");
 
-    Console.WriteLine("Downloading platform...");
+    Console.WriteLine($"Downloading platform from {repoZip}...");
 
     using var client = new HttpClient();
     var data = client.GetByteArrayAsync(repoZip).Result;
@@ -43,7 +45,8 @@ static void InstallPlatform()
 
     ZipFile.ExtractToDirectory(tempZip, extractPath);
 
-    var source = Path.Combine(extractPath, "ai-dev-platform-template-main");
+    var source = ResolveExtractedSourceDirectory(extractPath);
+    ValidateTemplateStructure(source, repoZip);
 
     CopyIfMissing(Path.Combine(source, "ai"), "ai");
     CopyIfMissing(Path.Combine(source, "scripts"), "scripts");
@@ -51,6 +54,52 @@ static void InstallPlatform()
     CopyIfMissing(Path.Combine(source, "AGENTS.md"), "AGENTS.md");
 
     Console.WriteLine("AI platform installed.");
+}
+
+static string ResolveTemplateZipSource(string[] commandArgs, string defaultRepoZip)
+{
+    if (commandArgs.Length > 0 && !string.IsNullOrWhiteSpace(commandArgs[0]))
+        return commandArgs[0];
+
+    var envSource = Environment.GetEnvironmentVariable("AI_PLATFORM_TEMPLATE_ZIP");
+    if (!string.IsNullOrWhiteSpace(envSource))
+        return envSource;
+
+    return defaultRepoZip;
+}
+
+static string ResolveExtractedSourceDirectory(string extractPath)
+{
+    var directories = Directory.GetDirectories(extractPath);
+    if (directories.Length == 1)
+        return directories[0];
+
+    if (Directory.Exists(Path.Combine(extractPath, "ai")))
+        return extractPath;
+
+    throw new DirectoryNotFoundException(
+        $"Could not determine the template root inside '{extractPath}'. Expected a single extracted top-level directory or platform files at the archive root.");
+}
+
+static void ValidateTemplateStructure(string source, string sourceDescription)
+{
+    var missingItems = new List<string>();
+
+    if (!Directory.Exists(Path.Combine(source, "ai")))
+        missingItems.Add("ai/");
+
+    if (!Directory.Exists(Path.Combine(source, "scripts")))
+        missingItems.Add("scripts/");
+
+    if (!File.Exists(Path.Combine(source, "AGENTS.md")))
+        missingItems.Add("AGENTS.md");
+
+    if (missingItems.Count == 0)
+        return;
+
+    var missingSummary = string.Join(", ", missingItems);
+    throw new InvalidDataException(
+        $"The template source '{sourceDescription}' is not compatible. Missing required items: {missingSummary}. Use a ZIP generated from a compatible AI platform template repository.");
 }
 
 static void CopyIfMissing(string source, string target)
@@ -104,7 +153,7 @@ static void RunDoctor()
     {
         ("ai directory", Directory.Exists("ai"), "Run: ai-platform init"),
         ("scripts directory", Directory.Exists("scripts"), "Run: ai-platform init"),
-        ("AGENTS.md", File.Exists("AGENTS.md"), "Create AGENTS.md from your platform template."),
+        ("AGENTS.md", File.Exists("AGENTS.md"), "Create AGENTS.md from a compatible platform template source."),
         (".git directory", Directory.Exists(".git"), "Initialize git with: git init"),
         ("codex in PATH", IsCodexAvailable(), "Install Codex CLI and ensure `codex` is available in PATH.")
     };
@@ -173,8 +222,11 @@ static void ShowHelp()
     Console.WriteLine("AI Platform CLI");
     Console.WriteLine("");
     Console.WriteLine("Commands:");
-    Console.WriteLine("  ai-platform init   Install AI development platform");
+    Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
     Console.WriteLine("  ai-platform run    Start worker");
     Console.WriteLine("  ai-platform plan   Plan feature tasks");
     Console.WriteLine("  ai-platform doctor Validate repository readiness");
+    Console.WriteLine("");
+    Console.WriteLine("Environment:");
+    Console.WriteLine("  AI_PLATFORM_TEMPLATE_ZIP     Override the template ZIP used by init");
 }

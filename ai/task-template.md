@@ -4,7 +4,7 @@
 Clear description of the objective.
 
 ## Context
-Explain where in the project the change happens.
+Explain where in the repository the change happens and why it matters.
 
 ## Steps
 
@@ -18,15 +18,15 @@ List the most relevant files that should be inspected before implementing the ta
 
 Examples:
 
-- Controllers/GuestController.cs
-- Services/ConfirmationService.cs
-- Data/ApplicationDbContext.cs
-- Models/Guest.cs
+- README.md
+- scripts/codex-runner.ps1
+- ai/orchestrator/feature-planner.md
+- src/FeatureModule/FeatureService.cs
 
 Rules:
 
 - The agent should read these files before making any change.
-- Prefer reading existing services, controllers and models related to the feature.
+- Prefer reading the current implementation, related configuration, and nearby tests or docs.
 - Keep the list small (3-6 files).
 
 ## Expected Files to Modify
@@ -35,10 +35,10 @@ List the files that are expected to change during this task.
 
 Examples:
 
-- Controllers/GuestController.cs
-- Services/ConfirmationService.cs
-- Data/ApplicationDbContext.cs
-- Views/Guest/Confirm.cshtml
+- README.md
+- scripts/run-integration-tests.ps1
+- ai/repo-context.md
+- src/FeatureModule/FeatureService.cs
 
 Rules:
 
@@ -48,7 +48,7 @@ Rules:
 
 ## Constraints
 
-- Follow ASP.NET Core MVC architecture
+- Follow the architecture and conventions of the current repository
 - Do not modify unrelated files
 - Keep the change minimal
 - Prefer small commits
@@ -57,9 +57,9 @@ Rules:
 
 Before completing the task ensure:
 
-- dotnet build succeeds
-- dotnet test succeeds
-- no new warnings introduced
+- repository-relevant build steps succeed, if applicable
+- repository-relevant tests succeed, if applicable
+- no new warnings or obvious regressions are introduced
 
 ## Change Budget
 

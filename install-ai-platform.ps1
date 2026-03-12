@@ -290,8 +290,8 @@ Done tasks: ai/tasks/done
 Write-TemplateFile -RelativePath "AGENTS.md" -Content $agentsTemplate -OnlyIfMissing
 
 if ($DryRun) {
-    Write-Host "[DryRun] AI platform installation preview completed."
+    Write-Host "[DryRun] AI platform seed installation preview completed."
 }
 else {
-    Write-Host "AI platform installation completed."
+    Write-Host "AI platform seed installation completed."
 }

@@ -1,4 +1,4 @@
-﻿# Feature Planner
+# Feature Planner
 
 ## Purpose
 Provide a repeatable planning scaffold for AI agents to turn a feature request into a clear, implementation-ready plan.
@@ -16,7 +16,7 @@ Provide a repeatable planning scaffold for AI agents to turn a feature request i
 2. Gather repository context from the minimum relevant files.
 3. Define scope boundaries (in scope vs out of scope).
 4. Break implementation into small, ordered work items.
-5. Identify interface or contract changes (APIs, models, config, docs).
+5. Identify interface or contract changes (APIs, scripts, config, docs, models).
 6. Define test scenarios (happy path, edge cases, regressions).
 7. Add validation steps and rollout considerations.
 8. Review the plan against constraints and simplify where possible.
@@ -32,7 +32,7 @@ The planner output should include:
 Use concise Markdown with clear bullets and ordered steps. Keep it decision-complete so another engineer or agent can implement without guessing.
 
 ## Constraints
-- Follow ASP.NET Core MVC architecture.
+- Follow the architecture and conventions of the current repository.
 - Do not modify unrelated files.
 - Keep each task focused and small.
 - Prefer changes under 5 files and under 200 lines when feasible.
@@ -59,16 +59,16 @@ Rules:
 - The planner should analyze the repository structure and select a small set of files that are relevant to the feature
 - The section should contain 3-6 files when possible
 - Guidelines for `Files to Read First`:
-  - Controllers related to the feature
-  - Services implementing similar logic
-  - EF Core DbContext or models
-  - Existing tests related to the area
+  - current implementation files related to the feature
+  - configuration or workflow files that affect behavior
+  - existing tests or docs related to the area
+  - validation entrypoints such as scripts or CLI commands when relevant
 - Every generated task must include a section: `## Expected Files to Modify`
 - The planner should analyze the repository structure and predict which files are likely to change for the task
 - Each task should implement a single logical change
 - Prefer tasks under 200 lines of code
 - Prefer modifying fewer than 5 files per task
-- If business logic is added or modified, create an additional task for tests
+- If core behavior is added or modified, create an additional task for tests when appropriate
 
 Task file naming:
 
@@ -76,18 +76,18 @@ Task file naming:
 
 Example flow:
 
-`Feature -> Planning -> Task files -> Codex worker execution`
+`Feature -> Planning -> Task files -> Worker execution`
 
 Example:
 
-Task: Add email reminder service
+Task: Clarify worker retry behavior
 
 Expected Files to Modify:
 
-- Services/ReminderService.cs
-- Controllers/AdminController.cs
-- Models/Reminder.cs
-- Data/ApplicationDbContext.cs
+- README.md
+- AGENTS.md
+- scripts/codex-runner.ps1
+- tests/WorkerRunnerTests.cs
 
 ## Planning Memory
 
@@ -111,14 +111,14 @@ When generating tasks:
 
 When planning tasks:
 
-1. Use di-analysis.md to understand service dependencies.
-2. Avoid creating duplicate services.
-3. Prefer extending existing services when possible.
+1. Use di-analysis.md to understand component dependencies.
+2. Avoid creating duplicate services or workflow entrypoints.
+3. Prefer extending existing components when possible.
 
 ## Architecture Awareness
 
 Before planning tasks:
 
 1. Read ai/architecture-index.md
-2. Identify the relevant layers for the feature.
+2. Identify the relevant layers or operating areas for the feature.
 3. Only then scan specific files in the repository.

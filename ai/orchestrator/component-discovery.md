@@ -1,50 +1,48 @@
-﻿# Component Discovery
+# Component Discovery
 
 Before implementing a task, analyze the repository to identify the most relevant components.
 
 ## Goals
 
-Automatically determine which parts of the codebase are related to the feature.
+Determine which parts of the codebase are related to the requested change with the least repository scanning possible.
 
 ## Steps
 
-1. Identify related Controllers
-2. Identify related Services
-3. Identify related Models
-4. Identify DbContext or EF Core configuration
-5. Identify existing tests related to the feature
+1. Identify the entrypoints affected by the change
+2. Identify the modules or services that currently own the behavior
+3. Identify related models, configuration, or shared utilities
+4. Identify persistence, external integrations, or automation boundaries if they exist
+5. Identify existing tests or docs related to the feature
 
 ## Search heuristics
 
 Look for:
 
-- class names matching the feature domain
-- services injected into controllers
-- EF Core DbSet references
-- namespaces related to the feature
+- file names or symbols matching the feature domain
+- references from entrypoints to implementation modules
+- configuration keys or environment variables related to the behavior
+- test files covering similar scenarios
+- scripts, workflows, or docs that describe the same flow
 
 Example:
 
-Feature: Guest confirmation reminders
+Feature: Add retry guidance for a worker command
 
 Relevant components might be:
 
-Controllers:
-- GuestController.cs
+Docs:
+- README.md
+- AGENTS.md
 
-Services:
-- ConfirmationService.cs
+Automation:
+- scripts/codex-runner.ps1
 
-Models:
-- Guest.cs
-- Confirmation.cs
-
-Data:
-- ApplicationDbContext.cs
+CLI:
+- ai-platform-cli/Program.cs
 
 Tests:
-- ConfirmationServiceTests.cs
+- tests/WorkerRunnerTests.cs
 
 ## Output
 
-Provide a list of files to inspect before implementation.
+Provide a short list of files to inspect before implementation.

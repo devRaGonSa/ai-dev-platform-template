@@ -1,17 +1,18 @@
-﻿name: Codex Worker
+name: Codex Task Automation (Direct CI)
 
 on:
   push:
     paths:
       - 'ai/tasks/pending/**'
 
-jobs:
-  run-codex-worker:
+permissions:
+  contents: write
 
+jobs:
+  run-codex-direct:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -23,11 +24,11 @@ jobs:
       - name: Install Codex CLI
         run: npm install -g @openai/codex
 
-      - name: Run Codex Worker
+      - name: Run Codex Directly In CI
         run: |
           codex --auto "Follow the workflow defined in AGENTS.md and process the pending tasks."
 
-      - name: Push changes
+      - name: Push Automated Changes
         run: |
           git config user.name "codex-worker"
           git config user.email "codex@automation.local"

@@ -1,47 +1,51 @@
-﻿# Dependency Injection Analysis
+# Dependency Injection Analysis
 
-Analyze the ASP.NET Core dependency injection configuration to understand service relationships.
+Analyze the repository's dependency wiring to understand how components are connected.
 
 ## Objectives
 
-Identify how controllers, services and data access components are connected.
+Identify how entrypoints, services, helpers, and infrastructure components depend on each other before introducing new code.
 
 ## Steps
 
-1. Inspect Program.cs or Startup.cs.
-2. Locate service registrations such as:
-
-builder.Services.AddScoped
-builder.Services.AddSingleton
-builder.Services.AddTransient
-
+1. Inspect the repository's composition root or wiring mechanism.
+2. Locate registrations, factory methods, constructor dependencies, or setup scripts.
 3. Map the relationship:
 
-Interface -> Implementation
+Abstraction or caller -> implementation or dependency
 
-Example:
+4. Identify which entrypoints depend on those components.
+5. Determine downstream dependencies such as storage, external services, CLI commands, scripts, or configuration.
 
-IConfirmationService -> ConfirmationService
+## Common places to inspect
 
-4. Identify which controllers depend on those services.
+- `Program.cs`
+- `Startup.cs`
+- dependency registration modules
+- factory or bootstrap classes
+- shell or PowerShell scripts that assemble commands
+- workflow files under `.github/workflows/`
 
-Example:
+## Example
 
-GuestController -> IConfirmationService
+Dependency map:
 
-5. Determine downstream dependencies such as DbContext or external services.
+Entrypoint:
+- `scripts/codex-runner.ps1`
+
+CLI:
+- `ai-platform run` -> `scripts/codex-runner.ps1`
+
+Infrastructure:
+- worker script -> `git`
+- worker script -> `codex`
 
 ## Output
 
-Produce a dependency map such as:
+Produce a dependency map that identifies:
 
-Controller:
-- GuestController
-
-Service:
-- IConfirmationService -> ConfirmationService
-
-Data:
-- ApplicationDbContext
+- the component being changed
+- the components that call it
+- the services, tools, or infrastructure it relies on
 
 This information should guide which components are modified in a task.

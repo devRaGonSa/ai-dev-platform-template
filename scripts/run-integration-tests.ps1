@@ -1,20 +1,14 @@
-﻿Write-Host "Starting integration environment..."
+param(
+    [string]$ConfigurationHint = ""
+)
 
-docker compose -f docker-compose.test.yml up -d
+Write-Host "Integration test hook detected."
 
-Write-Host "Waiting for containers..."
-Start-Sleep -Seconds 20
+if ($ConfigurationHint) {
+    Write-Host "Configuration hint: $ConfigurationHint"
+}
 
-Write-Host "Running EF migrations..."
+Write-Host "This script is a repository-level placeholder and must be adapted to the current repository before it can run real integration tests."
+Write-Host "No integration tests configured."
 
-dotnet ef database update `
-  --project FormularioBoda.Web `
-  --startup-project FormularioBoda.Web
-
-Write-Host "Running integration tests..."
-
-dotnet test FormularioBoda.sln --filter Category=Integration
-
-Write-Host "Stopping containers..."
-
-docker compose -f docker-compose.test.yml down
+exit 0

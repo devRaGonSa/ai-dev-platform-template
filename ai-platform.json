@@ -1,0 +1,18 @@
+{
+  "platformVersion": "1.0",
+  "requiredTemplatePaths": [
+    "ai",
+    "scripts",
+    "AGENTS.md",
+    "ai-platform.json"
+  ],
+  "taskPaths": {
+    "pending": "ai/tasks/pending",
+    "inProgress": "ai/tasks/in-progress",
+    "done": "ai/tasks/done"
+  },
+  "worker": {
+    "lockFile": "ai/worker.lock",
+    "pollIntervalSeconds": 30
+  }
+}

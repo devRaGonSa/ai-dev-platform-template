@@ -41,44 +41,42 @@ When no pending tasks exist:
 
 ## Rules
 
-- Follow ASP.NET Core MVC architecture
+- Follow the architecture and conventions that exist in the current repository
 - Do not modify unrelated files
 - Prefer small commits
-- Create tests when necessary
+- Create or update tests when necessary
 
 ## Git workflow
 
 Before starting any task:
 
-1. Run git pull to synchronize the repository.
+1. Run git pull to synchronize the repository when the branch has a configured upstream and pulling is part of the repository workflow.
 
 After finishing a task cycle:
 
-1. Run dotnet build
-2. Run dotnet test
-3. If build and tests succeed, commit changes
-4. Run git push
+1. Run the build command(s) that match the repository stack, if such commands exist
+2. Run the test command(s) that match the repository stack, if such commands exist
+3. If the required validation succeeds, commit changes
+4. Run git push when the repository workflow expects automatic pushes and the branch is configured for it
 
 ## Branch workflow
 
 When implementing a new set of tasks for a feature:
 
-1. Create a new branch using the format:
+1. Prefer creating a dedicated branch that follows the repository's branch naming conventions
 
-feature/<short-feature-name>
+2. All task commits for that feature should happen in that branch when the repository uses feature branches
 
-2. All task commits must happen in this branch.
+3. After finishing the tasks and passing required validation:
 
-3. After finishing the tasks and passing build and tests:
-
-- push the branch
-- create a Pull Request to main
+- push the branch if the repository uses remote collaboration
+- create a Pull Request to the default branch if the repository workflow uses PRs
 
 4. The Pull Request should include:
 
 - summary of the feature
 - list of implemented tasks
-- test validation results
+- validation results
 
 ## Change limits
 
@@ -126,22 +124,16 @@ To control resource usage:
 
 ## Integration Validation
 
-If a task modifies:
+If a task modifies code that interacts with storage, external services, background jobs, or other integration boundaries:
 
-- database schema
-- EF Core models
-- services interacting with storage
-- MinIO or external services
+- run repository-specific integration tests when they are configured
+- use scripts/run-integration-tests.ps1 only if it exists and has been adapted for the current repository
 
-Run integration tests only if the script exists:
-
-scripts/run-integration-tests.ps1
-
-If it does not exist, skip integration tests and log:
+If integration tests are not configured, skip them and log:
 
 No integration tests configured.
 
-Only mark the task completed if configured integration tests succeed.
+Only mark the task completed if the configured integration tests succeed.
 
 ## File Change Validation
 
@@ -170,18 +162,18 @@ Do not modify code before reviewing these files.
 Before implementing a task:
 
 1. Use ai/orchestrator/component-discovery.md
-2. Identify controllers, services, models and DbContext related to the task.
+2. Identify the modules, services, scripts, docs, or other components related to the task.
 3. Read those files before modifying code.
 4. Prefer modifying existing components rather than creating duplicates.
 
 ## Dependency Analysis
 
-Before modifying services or controllers:
+Before modifying services, automation entrypoints, or composition roots:
 
-1. Analyze dependency injection configuration using ai/orchestrator/di-analysis.md.
-2. Identify existing services and their dependencies.
-3. Prefer extending existing services instead of creating new ones.
-4. Ensure new services are registered in the DI container.
+1. Analyze dependency registration or wiring using ai/orchestrator/di-analysis.md.
+2. Identify existing components and their dependencies.
+3. Prefer extending existing components instead of creating new ones.
+4. Ensure new dependencies are wired using the repository's existing conventions.
 
 ## Architecture Index
 

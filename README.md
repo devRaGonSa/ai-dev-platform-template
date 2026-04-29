@@ -1,143 +1,146 @@
 # AI Development Platform Template
 
-A reusable repository template for **structured AI-assisted development** using Codex, task files, orchestration guides, a worker loop, and optional automation.
+Reusable repository template for structured AI-assisted development with Codex, task files, orchestration guides, a worker loop, and optional automation.
 
 ---
 
 ## 1. What this repository is
 
-This repository is a **reusable AI development platform template**. It is designed to be copied or installed into other repositories so teams can run a consistent workflow:
+This repository is a template for teams that want a repeatable AI-driven development workflow inside a Git repository.
 
-- Feature request intake
-- Planning and task decomposition
-- Task execution by an AI worker
-- Validation and commit/push automation
-- Continuous review loop
+It currently provides:
 
-Today, this template provides:
+- a task system (`ai/tasks/pending`, `in-progress`, `done`)
+- repository context and architecture prompts (`ai/*.md`)
+- orchestrator guidance documents (`ai/orchestrator/*`)
+- a local worker script (`scripts/codex-runner.ps1`)
+- a small CLI entrypoint (`ai-platform-cli/Program.cs`)
+- a bootstrap installer script (`install-ai-platform.ps1`)
+- GitHub Actions wiring for automated worker execution
 
-- A task system (`ai/tasks/pending`, `in-progress`, `done`)
-- Orchestrator guidance documents (`ai/orchestrator/*`)
-- Repository context and architecture prompts (`ai/*.md`)
-- A worker script (`scripts/codex-runner.ps1`)
-- A .NET CLI entrypoint (`ai-platform-cli/Program.cs`)
-- GitHub workflow wiring (`.github/workflows/codex-worker.yml`)
-- An installer scaffold script (`install-ai-platform.ps1`)
-
-It can also improve itself by using the same task workflow in this repository.
+This repository is also used to improve the template itself through the same task workflow.
 
 ---
 
-## 2. Why it exists
+## 2. What it is not
 
-This template exists to solve common problems in AI-assisted development:
+This repository is not a complete multi-stack platform.
 
-| Problem | How this platform addresses it |
-|---|---|
-| Unstructured AI output | Uses task files with explicit scope, constraints, and validation |
-| Inconsistent implementation flow | Standardizes pending → in-progress → done lifecycle |
-| Weak planner/worker coordination | Adds dedicated orchestrator docs and prompts |
-| Hard to reuse across projects | Provides installable folder structure + CLI + scripts |
-| Review quality drift over time | Includes repository review loop guidance |
+Important limitations:
+
+- the worker automation is currently PowerShell-based
+- the bundled CLI is currently implemented in .NET
+- some automation assumes a Git-based workflow with commit and push steps
+- the integration test hook is only a placeholder until a consumer repository adapts it
+
+The template is reusable, but not fully stack-agnostic in implementation details yet. Where behavior is still opinionated, this README calls that out explicitly.
 
 ---
 
 ## 3. Core concepts
 
-- **Orchestrator**: Planning guidance documents under `ai/orchestrator/` that define how to analyze scope and create executable tasks.
-- **Planner**: The planning stage (typically via prompt + orchestrator docs) that turns feature requests into concrete `TASK-XXX` markdown files.
-- **Worker**: The execution loop (`scripts/codex-runner.ps1`) that detects pending tasks and invokes Codex.
-- **Tasks**: Markdown units of work following `ai/task-template.md`.
-- **Specialized agents**: Repository-provided role docs in `ai/orchestrator/` (feature planner, repo reviewer, PR generator, etc.) plus global AGENTS workflow rules.
-- **CLI**: `ai-platform-cli` command surface (`init`, `run`, `plan`, `doctor`) implemented in `ai-platform-cli/Program.cs`.
-- **Template repository**: This repository itself (`ai-dev-platform-template`).
-- **Consumer repository**: Any project into which you install/copy this platform.
-- **Review loop**: When no pending tasks exist, inspect repo health and generate improvement tasks.
-- **Task lifecycle**:
-  - `ai/tasks/pending` — waiting to start
-  - `ai/tasks/in-progress` — currently active
-  - `ai/tasks/done` — completed tasks
+- **Tasks**: Markdown units of work following `ai/task-template.md`
+- **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
+- **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
+- **CLI**: the `ai-platform-cli` command surface (`init`, `run`, `plan`, `doctor`)
+- **Template repository**: this repository
+- **Consumer repository**: a repository that installs or copies this platform
+- **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
+
+Task lifecycle:
+
+- `ai/tasks/pending`: waiting to start
+- `ai/tasks/in-progress`: currently active
+- `ai/tasks/done`: completed
 
 ---
 
 ## 4. Repository structure
 
-### High-level tree (current)
-
 ```text
 .
-├── AGENTS.md
-├── README.md
-├── install-ai-platform.ps1
-├── .github/
-│   └── workflows/
-│       └── codex-worker.yml
-├── ai/
-│   ├── architecture-index.md
-│   ├── repo-context.md
-│   ├── system-metrics.md
-│   ├── task-template.md
-│   ├── prompts/
-│   │   └── plan-feature.md
-│   ├── orchestrator/
-│   │   ├── component-discovery.md
-│   │   ├── di-analysis.md
-│   │   ├── feature-planner.md
-│   │   ├── planning-memory.md
-│   │   ├── pr-generator.md
-│   │   └── repo-reviewer.md
-│   └── tasks/
-│       ├── pending/
-│       ├── in-progress/
-│       └── done/
-├── scripts/
-│   ├── codex-runner.ps1
-│   └── run-integration-tests.ps1
-└── ai-platform-cli/
-    ├── Program.cs
-    └── ai-platform-cli.csproj
+|-- ai-platform.json
+|-- AGENTS.md
+|-- README.md
+|-- install-ai-platform.ps1
+|-- .github/
+|   `-- workflows/
+|       `-- codex-worker.yml
+|-- ai/
+|   |-- architecture-index.md
+|   |-- repo-context.md
+|   |-- system-metrics.md
+|   |-- task-template.md
+|   |-- prompts/
+|   |   `-- plan-feature.md
+|   |-- orchestrator/
+|   |   |-- component-discovery.md
+|   |   |-- di-analysis.md
+|   |   |-- feature-planner.md
+|   |   |-- planning-memory.md
+|   |   |-- pr-generator.md
+|   |   `-- repo-reviewer.md
+|   `-- tasks/
+|       |-- pending/
+|       |-- in-progress/
+|       `-- done/
+|-- scripts/
+|   |-- codex-runner.ps1
+|   `-- run-integration-tests.ps1
+`-- ai-platform-cli/
+    |-- Program.cs
+    `-- ai-platform-cli.csproj
 ```
-
-### Important paths explained
-
-| Path | Purpose |
-|---|---|
-| `AGENTS.md` | Core behavioral rules for AI task processing and workflow constraints. |
-| `ai/` | Core platform knowledge base: architecture docs, templates, prompts, orchestration. |
-| `ai/orchestrator/` | Specialized planning/review/PR guidance documents. |
-| `ai/tasks/` | Task lifecycle folders (`pending`, `in-progress`, `done`). |
-| `scripts/` | Worker automation and optional integration test script. |
-| `ai-platform-cli/` | .NET command-line entrypoint for install/run/doctor/plan operations. |
-| `.github/workflows/` | GitHub Actions automation for task-triggered Codex execution. |
-| `install-ai-platform.ps1` | Template bootstrap installer script for populating platform files. |
-
-> Note: There is currently **no `agents/` directory** and **no `installer/` directory** in this repository.
 
 ---
 
-## 5. How the platform works
+## 5. What is generic today
 
-End-to-end operational flow:
+The following parts are intentionally generic and designed to be reused with minimal editing:
 
-1. **Feature request arrives**
-2. **Planning** uses `ai/orchestrator/feature-planner.md` + context files
-3. **Task files are generated** using `ai/task-template.md`
-4. Tasks are placed in **`ai/tasks/pending`**
-5. **Worker loop** (`scripts/codex-runner.ps1`) checks pending tasks
-6. Worker invokes Codex with AGENTS workflow instruction
-7. Task is moved to **`in-progress`**, implemented, validated
-8. Task is moved to **`done`**
-9. Worker may run integration tests script if present
-10. Worker auto-commits and pushes if changes exist
-11. If no pending tasks, review loop can generate improvements
+- task folder lifecycle under `ai/tasks/`
+- the minimal platform config in `ai-platform.json`
+- the task template in `ai/task-template.md`
+- repository context and architecture seed docs
+- orchestrator guidance for planning, review, and component discovery
+- the installer script that seeds platform files
+
+These pieces are meant to be adapted to the target repository, but they no longer assume one specific business domain.
+
+---
+
+## 6. What is opinionated today
+
+The following parts are reusable but still opinionated:
+
+- `scripts/codex-runner.ps1` uses PowerShell and an infinite polling loop
+- the worker performs `git pull` and may commit/push changes automatically
+- `.github/workflows/codex-worker.yml` uses a direct Codex CI flow instead of the local PowerShell worker
+- `ai-platform-cli/Program.cs` uses a .NET CLI and defaults to downloading this template from a GitHub ZIP source
+
+These are current conventions of the template, not universal requirements for all repositories or stacks.
+
+---
+
+## 7. How the platform works
+
+High-level flow:
+
+1. A request or improvement idea is identified
+2. Planning guidance is used to create task files
+3. Tasks are created in `ai/tasks/pending`
+4. The worker or a human processes the first pending task
+5. Validation is run using commands that make sense for the repository
+6. The task is moved to `ai/tasks/done`
+7. When no pending tasks remain, a review loop can generate follow-up tasks
 
 Simplified pipeline:
 
 ```text
-Feature Request
-  -> Planner (orchestrator docs)
-  -> TASK files (ai/tasks/pending)
-  -> Worker executes task
+Request
+  -> Planning
+  -> Task files
+  -> Worker execution
   -> Validation
   -> Commit/Push
   -> Review loop
@@ -145,125 +148,31 @@ Feature Request
 
 ---
 
-## 6. Role separation
+## 8. Role separation
 
 | Role | Responsibility |
 |---|---|
-| Human user | Defines goals, reviews output, approves merges, sets priorities. |
-| Orchestrator | Produces clear plan + task decomposition from request/context. |
-| Codex | Executes implementation steps according to task + AGENTS constraints. |
-| Worker script | Detects tasks, handles lock, invokes Codex, runs optional validation/push flow. |
-| Template repository | Provides reusable AI workflow framework. |
-| Consumer repository | Hosts actual application/business code that uses this framework. |
+| Human user | Defines goals, reviews output, sets priorities, approves merges |
+| Orchestrator | Produces implementation-ready plans and tasks |
+| Codex | Executes tasks according to repository rules |
+| Worker script | Detects tasks, invokes Codex, runs optional validation, and handles automation |
+| Template repository | Supplies reusable workflow scaffolding |
+| Consumer repository | Supplies the actual application code and stack-specific behavior |
 
 ---
 
-## 7. Specialized agents
+## 9. Normative files
 
-This repository currently models specialized agent behavior through `ai/orchestrator/*.md` documents.
+The following files are part of the operating contract of the template:
 
-| Agent spec file | Purpose | Used when | Task/planning influence |
-|---|---|---|---|
-| `feature-planner.md` | Convert feature request into actionable plan/tasks | New feature planning | Scope, task ordering, test strategy |
-| `component-discovery.md` | Identify relevant components/files | Before implementation/planning | Better `Files to Read First` quality |
-| `di-analysis.md` | Map dependency registrations/relations | Service/controller changes | Avoid duplicate services, preserve DI patterns |
-| `planning-memory.md` | Capture lessons learned | During planning | Improves future task sizing/safety |
-| `repo-reviewer.md` | Detect quality gaps and generate tasks | No pending tasks / review mode | Backlog maintenance and technical debt tasks |
-| `pr-generator.md` | Standardize PR title/body content | After implementation | Consistent PR summaries and validation notes |
-
-Additionally, `AGENTS.md` acts as the central policy layer for workflow execution.
-
----
-
-## 8. Task system
-
-### Lifecycle folders
-
-- `ai/tasks/pending`: queued tasks
-- `ai/tasks/in-progress`: active tasks
-- `ai/tasks/done`: completed tasks
-
-### Task template structure
-
-Tasks follow `ai/task-template.md` and include:
-
-- Goal
-- Context
-- Steps
-- Files to Read First
-- Expected Files to Modify
-- Constraints
-- Validation
-- Change Budget
-
-### Key governance fields
-
-- **Files to Read First**: mandatory pre-read context before coding
-- **Expected Files to Modify**: scope guardrail against unrelated edits
-- **Validation**: required checks before completion
-- **Change Budget**: encourages small, safe deltas
-
-### Example task
-
-```markdown
-# TASK-999
-
-## Goal
-Add README section clarifying worker lock handling.
-
-## Context
-The worker behavior is documented but lock recovery behavior is unclear.
-
-## Steps
-1. Inspect scripts/codex-runner.ps1 lock logic.
-2. Update README worker section.
-3. Validate references to lock file path and behavior.
-
-## Files to Read First
-- scripts/codex-runner.ps1
-- AGENTS.md
-- README.md
-
-## Expected Files to Modify
-- README.md
-
-## Constraints
-- Do not modify unrelated files
-- Keep change minimal
-
-## Validation
-- Verify lock file path matches script (`ai/worker.lock`)
-- Verify no non-existent command is documented
-
-## Change Budget
-- Prefer fewer than 5 files
-- Prefer under 200 lines
-```
-
----
-
-## 9. Planner and orchestration
-
-Primary planner spec: `ai/orchestrator/feature-planner.md`.
-
-Current planner behavior expects:
-
-1. Read architecture and repository context
-2. Define scope + non-goals
-3. Break into small ordered tasks
-4. Include validation scenarios
-5. Generate task files in `ai/tasks/pending`
-6. Consult planning memory to avoid repeated mistakes
-
-Task priorities are determined by planner decomposition and task ordering in `pending` (the first pending task is processed first under AGENTS rules).
-
-Planning context sources currently include:
-
-- `ai/architecture-index.md`
+- `ai-platform.json`
+- `AGENTS.md`
 - `ai/repo-context.md`
-- `ai/orchestrator/planning-memory.md`
-- `ai/orchestrator/component-discovery.md`
-- `ai/orchestrator/di-analysis.md`
+- `ai/architecture-index.md`
+- `ai/task-template.md`
+- `ai/orchestrator/*.md`
+
+These files should describe the current repository honestly. They should not pretend the repository is a different application or stack.
 
 ---
 
@@ -271,20 +180,30 @@ Planning context sources currently include:
 
 Implemented in `scripts/codex-runner.ps1`.
 
-Behavior summary:
+Current behavior:
 
-1. Infinite polling loop (30s sleep)
-2. Uses lock file `ai/worker.lock`
-3. Detects stale lock by checking PID/process presence
-4. Runs `git pull`
-5. Detects pending markdown tasks
-6. Invokes `codex "Follow the workflow defined in AGENTS.md and process the pending tasks."`
-7. Logs task run metrics into `ai/system-metrics.md`
-8. If integration script exists, executes `scripts/run-integration-tests.ps1`
-9. If git changes exist, auto-commits and pushes
-10. Always removes lock in `finally`
+1. Runs in a polling loop
+2. Uses the lock file path from `ai-platform.json` (`worker.lockFile`) with fallback to `ai/worker.lock`
+3. Reads the pending task directory from `ai-platform.json` (`taskPaths.pending`) with fallback to `ai/tasks/pending`
+4. Reads the polling interval from `ai-platform.json` (`worker.pollIntervalSeconds`) with fallback to `30`
+5. Removes stale locks when the owning process is no longer active
+6. Runs `git pull`
+7. Detects pending Markdown tasks
+8. Invokes Codex with the AGENTS workflow instruction
+9. Appends execution metrics to `ai/system-metrics.md`
+10. Calls `scripts/run-integration-tests.ps1` if it exists
+11. Commits and pushes when changes are present
 
-Integration tests are optional by existence of script and may require project-specific assets (`docker-compose.test.yml`, solution/projects).
+Notes:
+
+- this behavior is current template behavior, not a universal best practice
+- if your repository should not auto-push, adapt the script or workflow
+- the integration test hook must be configured by each consumer repository if real integration tests are needed
+
+The local worker and the GitHub workflow are intentionally not identical:
+
+- `scripts/codex-runner.ps1` is the local PowerShell worker
+- `.github/workflows/codex-worker.yml` currently runs Codex directly in CI as a lightweight automation path
 
 ---
 
@@ -292,20 +211,37 @@ Integration tests are optional by existence of script and may require project-sp
 
 The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 
-| Command | What it does | When to use | Example | Expected output | Common failure modes |
-|---|---|---|---|---|---|
-| `ai-platform init` | Downloads template ZIP and copies missing platform files (`ai`, `scripts`, `.github`, `AGENTS.md`) | Bootstrap platform in a repo | `ai-platform init` | `Downloading platform...` then `AI platform installed.` | Network failure, file permissions, missing unzip/write rights |
-| `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Start local worker loop | `ai-platform run` | `Codex worker started...` and polling logs | `powershell` missing, script path missing, `codex` missing |
-| `ai-platform plan` | Prints planning guidance message | Reminder/entrypoint to planning flow | `ai-platform plan` | `Use the orchestrator prompts to generate tasks.` | None significant (informational command) |
-| `ai-platform doctor` | Validates required platform readiness checks | Before first worker run or troubleshooting | `ai-platform doctor` | Check list + `Platform ready.` or missing item guidance | Missing `.git`, missing `ai/`, missing `scripts/`, missing `codex` |
+| Command | What it does | Status |
+|---|---|---|
+| `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
+| `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
+| `ai-platform plan` | Prints a planning guidance message | Implemented |
+| `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
+| `ai-platform version` | Not currently available | Not implemented |
 
-### Commands requested but not currently implemented
+Important note:
 
-- `ai-platform version` — **not implemented today**.
+By default, `ai-platform init` downloads this template from the repository's current GitHub ZIP URL. You can also pass a ZIP URL explicitly or set `AI_PLATFORM_TEMPLATE_ZIP` to point at another compatible source.
 
-### Help output
+This improves portability, but `init` is still not a full multi-source package manager. It expects a compatible template archive layout.
 
-Running without a known subcommand prints help with available commands.
+Before copying files, `init` now validates that the downloaded template contains the minimum expected structure:
+
+- `ai/`
+- `scripts/`
+- `AGENTS.md`
+- `ai-platform.json`
+
+If the ZIP does not contain that minimum structure, installation stops with a clear compatibility error instead of reporting a successful install.
+
+At the end of a successful run, `init` prints a compact install summary showing:
+
+- the source used
+- whether the source came from the command argument, `AI_PLATFORM_TEMPLATE_ZIP`, or the built-in default
+- which top-level platform items were copied
+- which items were skipped because they already existed
+- the minimal validation that was applied
+- the recommended next step
 
 ---
 
@@ -313,172 +249,169 @@ Running without a known subcommand prints help with available commands.
 
 ### Prerequisites
 
-- Git repository initialized (`.git` exists)
+- a Git repository (`.git` exists)
 - Codex CLI available in PATH (`codex`)
 - PowerShell available for worker scripts
-- Optional: .NET SDK if building CLI locally
+- optional: .NET SDK if building or packaging the CLI locally
 
 ### Option A: CLI-based initialization
 
 ```bash
-# If ai-platform is already installed globally/in PATH
 ai-platform init
 ai-platform doctor
 ```
 
-### Option B: Script-based template bootstrap
+You can also override the source:
+
+```bash
+ai-platform init https://example.com/my-template.zip
+```
+
+or:
+
+```bash
+AI_PLATFORM_TEMPLATE_ZIP=https://example.com/my-template.zip ai-platform init
+```
+
+### Option B: Script-based bootstrap
 
 ```powershell
-# From target repository root
 powershell -ExecutionPolicy Bypass -File ./install-ai-platform.ps1
 ```
 
-### Verify readiness
+The PowerShell installer is a bootstrap script that seeds a bundled snapshot of the platform files. It is useful when you want a local, file-based installation path without relying on the CLI download flow.
 
-```bash
-ai-platform doctor
-```
+When `install-ai-platform.ps1` runs from a valid checkout of the template source repository, it now prefers copying a few sensitive artifacts from the real files next to the script:
 
-Readiness checks include:
-
-- `ai` directory
-- `scripts` directory
+- `ai-platform.json`
 - `AGENTS.md`
-- `.git` directory
-- `codex` command availability
+- `scripts/codex-runner.ps1`
+- `.github/workflows/codex-worker.yml`
 
-### Start task workflow
+If those real source files are not available, the installer falls back to its embedded snapshot content and says so in its output.
 
-1. Create task files in `ai/tasks/pending` using `ai/task-template.md`
-2. Run worker (`ai-platform run`) or use CI workflow
-3. Review produced commits and PRs
+### After installation
 
----
+1. Review and adapt `AGENTS.md`
+2. Review `ai-platform.json` and keep its paths aligned with your repository conventions
+3. Review and adapt `ai/repo-context.md`
+4. Review and adapt `ai/architecture-index.md`
+5. Adjust validation commands for the target repository
+6. Replace the integration test placeholder if integration tests are needed
 
-## 13. Example end-to-end workflow
+The template is meant to give you a starting point, not to eliminate repository-specific setup.
 
-### Feature request
+### Compatibility checks
 
-> “Add a readiness troubleshooting section to docs and ensure lock handling is documented.”
+`ai-platform doctor` validates the local repository after installation.
 
-### Planning
+`doctor` also reports whether `ai-platform.json` was:
 
-- Read `ai/architecture-index.md`, `ai/orchestrator/feature-planner.md`, `scripts/codex-runner.ps1`
-- Create `TASK-020-update-readme-troubleshooting.md`
+- loaded successfully
+- missing and replaced with built-in defaults
+- invalid and replaced with built-in defaults
+- loaded partially, with fallback defaults applied to specific keys
 
-### Task file created in pending
+`ai-platform init` validates the downloaded source before copying files.
 
-```text
-ai/tasks/pending/TASK-020-update-readme-troubleshooting.md
-```
+Together, these checks cover two different failure modes:
 
-### Worker execution
-
-- Worker detects pending task
-- Creates lock (`ai/worker.lock`)
-- Invokes Codex to process task by AGENTS workflow
-- Moves task pending → in-progress → done
-
-### Validation and commit
-
-- Task-defined validation commands run
-- Worker auto-commit if changes exist
-- Worker pushes branch if commit succeeded
+- invalid template source
+- incomplete local installation
 
 ---
 
-## 14. How this platform was validated
+## 13. Validation model
 
-The platform has been validated through real task-cycle usage inside this repository:
+Validation is repository-aware.
 
-- Multiple historical tasks are present in `ai/tasks/done`
-- Worker lock handling and Codex CLI detection were iterated via dedicated tasks
-- CLI doctor command and integration-test optional flow were added through task-driven changes
+Typical checks may include:
 
-Validation style is pragmatic:
+- build commands for the current stack
+- unit or integration tests for the current stack
+- lint or formatting checks when relevant
+- targeted script verification
 
-- task-by-task implementation
-- explicit constraints/change budget
-- commit-based checkpoints
-
----
-
-## 15. Troubleshooting
-
-| Issue | Symptom | Resolution |
-|---|---|---|
-| `codex` not found in PATH | Doctor fails on codex check | Install Codex CLI and ensure executable is in PATH; rerun `ai-platform doctor` |
-| No git repository | Doctor marks `.git` missing | Run `git init` or work in a cloned repository |
-| Worker lock file present | Worker repeatedly says already running | If stale, script auto-removes stale lock; otherwise stop duplicate worker process |
-| No pending tasks found | Worker loops with no execution | Add tasks to `ai/tasks/pending` |
-| Platform files missing | Doctor reports missing `ai`/`scripts`/`AGENTS.md` | Run `ai-platform init` or installer script |
-| Tasks generated but not pushed | Local commits exist only locally | Ensure remote and upstream are configured; run `git push` |
-| Branch/upstream issues | `git pull` fails due to no tracking | Set upstream: `git branch --set-upstream-to <remote>/<branch> <local-branch>` |
-| GitHub push or transient 502 issues | Push fails intermittently | Retry push; verify remote auth/network and branch protections |
-| Stale local platform install after template updates | Older docs/scripts remain | Re-run installer/`init`; for overwrite behavior use script `-Force` carefully |
+This template no longer assumes that every repository will use ASP.NET Core MVC, Entity Framework, SQL Server, or any specific business domain.
 
 ---
 
-## 16. Current limitations
+## 14. Minimal platform config
 
-- Some context docs (`ai/repo-context.md`, `ai/architecture-index.md`) contain example application details not aligned with this template-only repository; they are intended as customizable seed content.
-- CLI currently does not provide a `version` command.
-- `ai-platform run` assumes PowerShell and script compatibility in host environment.
-- Integration test script references project assets (`docker-compose.test.yml`, `FormularioBoda.*`) that may not exist in every consumer repository without adaptation.
-- Worker uses a generic commit message (`chore: process pending tasks`) unless the task execution flow customizes it.
+The root file `ai-platform.json` is a small, explicit configuration file for stable platform conventions.
+
+Today it covers only a few things that are already useful:
+
+- `platformVersion`: lightweight template/config version marker
+- `requiredTemplatePaths`: minimum paths a compatible template source must contain
+- `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
+- `worker.lockFile`: current lock file path convention used by the worker
+- `worker.pollIntervalSeconds`: polling interval for the worker loop
+
+What it does not cover yet:
+
+- repository stack or framework type
+- multiple profiles or template variants
+- validation command definitions
+- workflow policy beyond a few stable path conventions
+
+The current CLI already reads this file for minimal compatibility checks and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
 
 ---
 
-## 17. Best practices
+## 15. Current limitations
+
+- The worker and installer experience are PowerShell-first.
+- The CLI is implemented in .NET and `init` still defaults to this repository's ZIP source unless overridden.
+- `init` validates only a minimal compatible structure from `ai-platform.json`; it does not verify every optional file or workflow asset.
+- The installer script still contains embedded fallback content, so some divergence risk remains even though it now prefers real repository files for the most sensitive artifacts when available.
+- Git automation assumes a repository where automated `pull`, `commit`, and `push` behavior is acceptable.
+- `scripts/run-integration-tests.ps1` is intentionally a placeholder until adapted by the target repository.
+- GitHub automation is provided as a direct Codex CI flow, not as a full execution of the local PowerShell worker, and may require repository-specific permissions or policy changes.
+
+---
+
+## 16. Best practices
 
 - Keep tasks narrow, explicit, and validation-driven.
-- Always fill `Files to Read First` with the minimum critical context.
-- Keep `Expected Files to Modify` strict to reduce accidental edits.
+- Use `Files to Read First` to constrain discovery work.
+- Keep `Expected Files to Modify` strict.
 - Prefer one logical change per task.
-- Use orchestrator docs (`component-discovery`, `di-analysis`) before changing services/controllers in consumer projects.
-- Use dedicated branches for large initiatives.
-- Merge stable increments often instead of waiting for large batches.
+- Align context docs with the real repository state.
+- Document limitations instead of overstating genericity.
 
 ---
 
-## 18. Suggested workflow for large features
+## 17. Suggested workflow for large features
 
-1. Create a dedicated feature branch (`feature/<short-name>`)
-2. Use orchestrator flow to generate a task set in `ai/tasks/pending`
-3. Review and refine tasks before execution
-4. Run worker loop for incremental implementation
-5. Validate each completed task (build/tests/lint as applicable)
-6. Merge stable increments to main through PRs
+1. Create a dedicated branch using the repository's branch naming conventions
+2. Use orchestrator guidance to generate a small task set in `ai/tasks/pending`
+3. Review tasks before execution
+4. Run the worker loop or process tasks manually
+5. Validate each completed task with repository-relevant checks
+6. Merge stable increments through the repository's normal review process
 
 ---
 
-## 19. Future improvements
+## 18. Future improvements
 
-The following are **future work ideas** (not all implemented today):
+These are future improvements, not claims about current behavior:
 
-- Add `ai-platform version` command.
-- Add cross-platform worker runner (non-PowerShell entrypoint).
-- Improve structured metrics output (JSON/CSV) in addition to markdown log lines.
-- Add stricter task schema validation tooling.
-- Add explicit branch/upstream diagnostics in `doctor`.
-- Add first-class support for multiple orchestrator profiles per tech stack.
+- provide a safer update story for existing installs
+- offer alternative worker entrypoints beyond PowerShell
+- improve validation and doctor diagnostics for more repository types
+- move more stable conventions from hardcoded defaults into `ai-platform.json`
+- support richer profiles for different repository architectures
 
 ---
 
 ## Quick command reference
 
 ```bash
-# Initialize platform files in current repository
 ai-platform init
-
-# Check readiness before execution
 ai-platform doctor
-
-# Start worker loop
 ai-platform run
-
-# Show planning guidance message
 ai-platform plan
 ```
 
-If `ai-platform` is not installed globally, build/run the CLI project directly with .NET tooling in environments where .NET SDK is available.
+If `ai-platform` is not installed globally, you can still use the repository files directly or build the CLI locally with the .NET SDK.

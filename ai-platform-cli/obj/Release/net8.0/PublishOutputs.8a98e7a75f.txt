@@ -1,5 +1,0 @@
-D:\Proyectos\ai-dev-platform-template\ai-platform-cli\bin\Release\net8.0\publish\ai-platform-cli.exe
-D:\Proyectos\ai-dev-platform-template\ai-platform-cli\bin\Release\net8.0\publish\ai-platform-cli.dll
-D:\Proyectos\ai-dev-platform-template\ai-platform-cli\bin\Release\net8.0\publish\ai-platform-cli.deps.json
-D:\Proyectos\ai-dev-platform-template\ai-platform-cli\bin\Release\net8.0\publish\ai-platform-cli.runtimeconfig.json
-D:\Proyectos\ai-dev-platform-template\ai-platform-cli\bin\Release\net8.0\publish\ai-platform-cli.pdb

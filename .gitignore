@@ -1,0 +1,20 @@
+# Build outputs
+**/bin/
+**/obj/
+**/nupkg/
+
+# AI platform CLI build outputs
+ai-platform-cli/bin/
+ai-platform-cli/obj/
+ai-platform-cli/nupkg/
+
+# IDE and local environment files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp

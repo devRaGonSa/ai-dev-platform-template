@@ -10,7 +10,7 @@ This file tracks functional gaps that are known but not yet implemented.
 - There is no `reconcile` command.
 - There is no `implement` command as a replacement for `run`.
 - There is no `review` command.
-- There is no team model.
+- A basic documented team model exists, but there is no automatic routing or real multi-team execution.
 - There is no formal task review state.
 - There is no comparison between roadmap and real repository state.
 - There is no automatic task generation from roadmap items.

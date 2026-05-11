@@ -417,6 +417,16 @@ Roadmap-driven commands such as analysis, roadmap status, planning, reconciliati
 
 ---
 
+## 20. Specialized team model
+
+The specialized team model lives under `ai/teams/`.
+
+It documents ownership boundaries for Product, Platform, Orchestration, Frontend, Backend, Database, QA, DevOps, Security, and Docs. Future tasks may use `team` for the primary owner and `supporting_teams` for secondary contributors or reviewers.
+
+This is still documentation only. It does not add autonomous agents, automatic routing, or multi-team execution yet.
+
+---
+
 ## Quick command reference
 
 ```bash

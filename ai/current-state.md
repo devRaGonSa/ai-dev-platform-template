@@ -58,9 +58,16 @@ The repository includes:
 - `ai/task-template.md`
 - `ai/architecture-index.md`
 - `ai/repo-context.md`
+- `ai/teams/` documentation for specialized team responsibilities
 - orchestrator guidance under `ai/orchestrator/`
 - task lifecycle directories under `ai/tasks/`
 - GitHub Actions wiring for automated Codex execution
+
+## Current team model
+
+`ai/teams/` defines a documented model of specialized teams for Product, Platform, Orchestration, Frontend, Backend, Database, QA, DevOps, Security, and Docs.
+
+This model is for planning, ownership, and review guidance. There is no automatic team routing, autonomous multi-team execution, or enforced `team` metadata in tasks yet.
 
 ## Known limitations
 
@@ -71,6 +78,7 @@ The repository includes:
 - Integration tests are only a placeholder until adapted by a consumer repository.
 - Git automation assumes pull, commit, and push are acceptable for the target repository.
 - There is no formal roadmap-to-task reconciliation yet.
+- The team model is documentation only; routing and execution are not automated.
 
 ## Not yet implemented
 
@@ -80,6 +88,5 @@ The repository includes:
 - reconciliation between roadmap, code, docs, and tasks
 - a dedicated implement command
 - a formal review command or task review state
-- team model definitions
 - multi-agent orchestration
 - template versioning or remote upgrade management

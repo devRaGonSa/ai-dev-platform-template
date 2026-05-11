@@ -15,3 +15,6 @@ This file records decisions that should guide future platform work.
 - Do not introduce complex template versioning before the update and reconciliation model is defined.
 - Do not move tasks automatically to `done` without review.
 - Prefer documentation that describes current behavior honestly over aspirational command descriptions.
+- Adopt a documented specialized team model under `ai/teams/`.
+- Treat teams as planning and review ownership boundaries, not autonomous agents yet.
+- Future tasks may assign one primary `team` and optional `supporting_teams`.

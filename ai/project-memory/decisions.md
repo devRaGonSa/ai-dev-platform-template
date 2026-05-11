@@ -21,3 +21,7 @@ This file records decisions that should guide future platform work.
 - Adopt `ai/commands/` as the documentation contract for future commands.
 - Specify commands before implementing them.
 - Do not promise CLI availability just because a command spec exists.
+- Adopt an extended task lifecycle with `review`, `blocked`, and `obsolete` states.
+- Treat `review` as the barrier before `done`.
+- Use `blocked` and `obsolete` to avoid executing tasks that are not actionable or no longer valid.
+- Future automation must not jump directly from `pending` to `done` without validation.

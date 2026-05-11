@@ -28,6 +28,7 @@ Review implemented task work before it is marked done.
 - `done`: evidence supports completion.
 - `blocked`: external dependency prevents completion.
 - `rework`: changes are needed before completion.
+- `obsolete`: task is no longer valid and should not be executed.
 
 ## Behavior
 
@@ -35,6 +36,8 @@ Review implemented task work before it is marked done.
 - Must identify risks, missing tests, and documentation drift.
 - Must not approve high-risk changes automatically without evidence.
 - Should not move tasks to `done` without an explicit policy and sufficient evidence.
+- Should treat `review` as the normal state before `done`.
+- May recommend `blocked` or `obsolete` instead of `done` when the task is not safely completable.
 
 ## Acceptance criteria
 

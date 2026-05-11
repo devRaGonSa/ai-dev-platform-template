@@ -34,7 +34,10 @@ Progressively replace `run` with a safer task implementation flow.
 - Read required context.
 - Implement scoped changes.
 - Validate.
-- Move to `review` when that state exists, or follow the current repository workflow until review is formalized.
+- Move to `review` after implementation and validation.
+- Use `blocked` when a concrete dependency prevents progress.
+- Use `obsolete` only when an explicit review/reconciliation decision says the task should not be executed.
+- Do not close directly to `done` unless a future explicit policy allows it.
 
 ## Validation requirements
 
@@ -55,6 +58,7 @@ Progressively replace `run` with a safer task implementation flow.
 - Must not auto-complete high-risk work without review.
 - Must not overwrite unrelated user changes.
 - Must not replace `run` until implemented and documented.
+- Must not skip the `review` barrier before `done` without explicit future policy.
 
 ## Acceptance criteria
 

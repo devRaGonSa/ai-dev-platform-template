@@ -10,7 +10,7 @@ This repository is a template for teams that want a repeatable AI-driven develop
 
 It currently provides:
 
-- a task system (`ai/tasks/pending`, `in-progress`, `done`)
+- a task system (`ai/tasks/pending`, `in-progress`, `review`, `done`, `blocked`, `obsolete`)
 - repository context and architecture prompts (`ai/*.md`)
 - orchestrator guidance documents (`ai/orchestrator/*`)
 - a local worker script (`scripts/codex-runner.ps1`)
@@ -49,9 +49,14 @@ The template is reusable, but not fully stack-agnostic in implementation details
 
 Task lifecycle:
 
-- `ai/tasks/pending`: waiting to start
-- `ai/tasks/in-progress`: currently active
-- `ai/tasks/done`: completed
+- `ai/tasks/pending`: waiting for execution
+- `ai/tasks/in-progress`: currently being executed
+- `ai/tasks/review`: implemented or candidate work waiting for review
+- `ai/tasks/done`: completed and validated
+- `ai/tasks/blocked`: cannot move forward because of an external dependency or decision
+- `ai/tasks/obsolete`: should not be executed because it is no longer valid
+
+`ai-platform reconcile` may propose candidates for review, blocked, or obsolete states, but it does not move tasks automatically. `ai-platform review` is still a future command. Tasks should not be moved to `done` without validation.
 
 ---
 
@@ -83,6 +88,9 @@ Task lifecycle:
 |   `-- tasks/
 |       |-- pending/
 |       |-- in-progress/
+|       |-- review/
+|       |-- blocked/
+|       |-- obsolete/
 |       `-- done/
 |-- scripts/
 |   |-- codex-runner.ps1
@@ -363,6 +371,7 @@ Today it covers only a few things that are already useful:
 - `platformVersion`: lightweight template/config version marker
 - `requiredTemplatePaths`: minimum paths a compatible template source must contain
 - `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
+- extended `taskPaths`: review, blocked, and obsolete directories for safer future workflows
 - `worker.lockFile`: current lock file path convention used by the worker
 - `worker.pollIntervalSeconds`: polling interval for the worker loop
 

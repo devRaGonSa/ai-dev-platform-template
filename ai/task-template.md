@@ -1,5 +1,25 @@
 # TASK-XXX
 
+---
+id: TASK-XXX
+title: Clear task title
+status: pending
+type: platform
+team: platform
+supporting_teams: []
+roadmap_item: ""
+priority: medium
+---
+
+Allowed task statuses:
+
+- `pending`
+- `in-progress`
+- `review`
+- `done`
+- `blocked`
+- `obsolete`
+
 ## Goal
 Clear description of the objective.
 

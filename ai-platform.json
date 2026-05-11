@@ -9,6 +9,9 @@
   "taskPaths": {
     "pending": "ai/tasks/pending",
     "inProgress": "ai/tasks/in-progress",
+    "review": "ai/tasks/review",
+    "blocked": "ai/tasks/blocked",
+    "obsolete": "ai/tasks/obsolete",
     "done": "ai/tasks/done"
   },
   "worker": {

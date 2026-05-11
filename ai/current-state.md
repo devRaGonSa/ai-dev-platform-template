@@ -22,11 +22,11 @@ It does not implement `refresh`, `status`, `implement`, or `review`.
 
 - `platformVersion`
 - `requiredTemplatePaths`
-- task lifecycle paths for pending, in-progress, and done tasks
+- task lifecycle paths for pending, in-progress, review, blocked, obsolete, and done tasks
 - worker lock file path
 - worker polling interval
 
-The CLI uses it for compatibility checks and doctor output. The worker uses its pending task path, lock file path, and polling interval with fallbacks.
+The CLI uses it for compatibility checks and doctor output. Current CLI behavior still actively uses pending, in-progress, and done paths; review, blocked, and obsolete are structural lifecycle paths for future review/implement automation.
 
 ## Current worker
 
@@ -66,6 +66,19 @@ The repository includes:
 - orchestrator guidance under `ai/orchestrator/`
 - task lifecycle directories under `ai/tasks/`
 - GitHub Actions wiring for automated Codex execution
+
+## Current task lifecycle
+
+The repository defines an extended task lifecycle:
+
+- `ai/tasks/pending`
+- `ai/tasks/in-progress`
+- `ai/tasks/review`
+- `ai/tasks/done`
+- `ai/tasks/blocked`
+- `ai/tasks/obsolete`
+
+There is not yet complete automation for moving tasks between these states. `ai-platform reconcile` remains read-only, and future `review` and `implement` commands are expected to use this lifecycle safely.
 
 ## Current team model
 
@@ -121,6 +134,6 @@ It detects task counts, roadmap references, roadmap items with no task reference
 - advanced planning from roadmap items, including multi-task plans and automatic team splitting
 - deeper reconciliation that proposes smarter actions or integrates with review/implement
 - a dedicated `implement` command
-- a formal review command or task review state
+- a formal review command and safe state transitions
 - multi-agent orchestration
 - template versioning or remote upgrade management

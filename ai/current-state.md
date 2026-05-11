@@ -10,7 +10,7 @@ The .NET CLI currently implements:
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
-- `ai-platform plan`: prints a planning guidance message only; it does not generate tasks.
+- `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
 It does not implement `refresh`, `status`, `reconcile`, `implement`, or `review`.
@@ -90,11 +90,17 @@ It does not move tasks, modify roadmap/current-state/team/command docs, execute 
 
 It does not modify roadmap/current-state/task files, execute Codex, call `run` or `refresh`, commit, push, download templates, perform network operations, or validate whether code implements each roadmap item.
 
+## Current plan behavior
+
+`ai-platform plan` accepts `--title`, optional `--roadmap`, `--team`, `--priority`, `--type`, and `--dry-run`. It generates one pending task per execution and infers a primary team from selected roadmap items when `--team` is not provided.
+
+It does not implement tasks, modify code, move tasks, update roadmap/current-state automatically, execute Codex, call `run` or `refresh`, commit, push, or perform network operations.
+
 ## Known limitations
 
 - The worker is PowerShell-first.
 - The CLI is .NET-based and small.
-- `plan` is only a message, not a real roadmap-aware planner.
+- `plan` is a first simple task generator, not a deep multi-task planner.
 - Command specs exist, but most roadmap-driven CLI behavior is not implemented yet.
 - Local worker behavior and GitHub workflow behavior are not identical.
 - Integration tests are only a placeholder until adapted by a consumer repository.
@@ -105,7 +111,7 @@ It does not modify roadmap/current-state/task files, execute Codex, call `run` o
 ## Not yet implemented
 
 - deeper roadmap-driven analysis beyond the first read-only reports
-- CLI support for task planning from roadmap items
+- advanced planning from roadmap items, including multi-task plans and automatic team splitting
 - CLI support for reconciliation between roadmap, code, docs, and tasks
 - a dedicated `implement` command
 - a formal review command or task review state

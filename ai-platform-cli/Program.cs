@@ -18,7 +18,7 @@ switch (command)
         break;
 
     case "plan":
-        Console.WriteLine("Use the orchestrator prompts to generate tasks.");
+        RunPlan(commandArgs);
         break;
 
     case "doctor":
@@ -319,6 +319,60 @@ static void RunRoadmapStatus()
     Console.WriteLine("Next step: review ai/reports/roadmap-status.md");
 }
 
+static void RunPlan(string[] commandArgs)
+{
+    var options = ParsePlanOptions(commandArgs);
+    if (string.IsNullOrWhiteSpace(options.Title))
+    {
+        ShowPlanHelp();
+        return;
+    }
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var config = LoadPlatformConfig(rootPath).Config;
+    var taskId = GetNextTaskId(config);
+    var team = string.IsNullOrWhiteSpace(options.Team)
+        ? InferTeam(options.RoadmapItem)
+        : options.Team.Trim().ToLowerInvariant();
+    var priority = string.IsNullOrWhiteSpace(options.Priority) ? "medium" : options.Priority.Trim();
+    var type = string.IsNullOrWhiteSpace(options.Type) ? "platform" : options.Type.Trim();
+    var pendingPath = config.TaskPaths.Pending!;
+    var outputPath = Path.Combine(pendingPath, $"{taskId}.md");
+    var displayPath = NormalizeDisplayPath(outputPath);
+    var content = BuildTaskContent(taskId, options.Title!, options.RoadmapItem, team, priority, type);
+
+    if (options.DryRun)
+    {
+        Console.WriteLine("AI Platform Plan dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Would create task: {displayPath}");
+        Console.WriteLine($"Roadmap item: {FormatOptionalValue(options.RoadmapItem)}");
+        Console.WriteLine($"Team: {team}");
+        Console.WriteLine($"Priority: {priority}");
+        Console.WriteLine("");
+        Console.WriteLine("Preview:");
+        Console.WriteLine($"# {taskId} - {options.Title}");
+        Console.WriteLine("");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
+    Directory.CreateDirectory(pendingPath);
+    if (File.Exists(outputPath))
+        throw new IOException($"Task file already exists: {displayPath}");
+
+    File.WriteAllText(outputPath, content);
+
+    Console.WriteLine("AI Platform Plan");
+    Console.WriteLine("");
+    Console.WriteLine($"Created task: {displayPath}");
+    Console.WriteLine($"Roadmap item: {FormatOptionalValue(options.RoadmapItem)}");
+    Console.WriteLine($"Team: {team}");
+    Console.WriteLine($"Priority: {priority}");
+    Console.WriteLine("");
+    Console.WriteLine("Next step: review the generated task, then run the implementation workflow.");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -349,6 +403,203 @@ static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
             "invalid ai-platform.json (using built-in defaults)",
             PlatformConfig.GetAllFallbackKeys());
     }
+}
+
+static PlanOptions ParsePlanOptions(string[] args)
+{
+    var options = new PlanOptions();
+
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        switch (arg)
+        {
+            case "--roadmap":
+                options.RoadmapItem = ReadOptionValue(args, ref index, arg).ToUpperInvariant();
+                break;
+            case "--title":
+                options.Title = ReadOptionValue(args, ref index, arg);
+                break;
+            case "--team":
+                options.Team = ReadOptionValue(args, ref index, arg);
+                break;
+            case "--priority":
+                options.Priority = ReadOptionValue(args, ref index, arg);
+                break;
+            case "--type":
+                options.Type = ReadOptionValue(args, ref index, arg);
+                break;
+            case "--dry-run":
+                options.DryRun = true;
+                break;
+            case "-h":
+            case "--help":
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown plan argument: {arg}");
+                break;
+        }
+    }
+
+    return options;
+}
+
+static string ReadOptionValue(string[] args, ref int index, string optionName)
+{
+    if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
+        throw new ArgumentException($"Missing value for {optionName}.");
+
+    index++;
+    return args[index];
+}
+
+static void ShowPlanHelp()
+{
+    Console.WriteLine("AI Platform Plan");
+    Console.WriteLine("");
+    Console.WriteLine("Creates one Markdown task in ai/tasks/pending.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform plan --title \"Task title\" [--roadmap R-005] [--team orchestration] [--priority medium] [--type platform] [--dry-run]");
+    Console.WriteLine("");
+    Console.WriteLine("Examples:");
+    Console.WriteLine("  ai-platform plan --roadmap R-005 --title \"Implement roadmap-driven plan command\"");
+    Console.WriteLine("  ai-platform plan --title \"Add team routing metadata to tasks\" --dry-run");
+}
+
+static string GetNextTaskId(PlatformConfig config)
+{
+    var paths = new[]
+    {
+        config.TaskPaths.Pending!,
+        config.TaskPaths.InProgress!,
+        config.TaskPaths.Done!
+    };
+    var max = 0;
+
+    foreach (var path in paths.Where(Directory.Exists))
+    {
+        foreach (var file in Directory.GetFiles(path, "TASK-*.md", SearchOption.TopDirectoryOnly))
+        {
+            var match = Regex.Match(Path.GetFileName(file), @"^TASK-(\d+)", RegexOptions.IgnoreCase);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
+                max = Math.Max(max, number);
+        }
+    }
+
+    return $"TASK-{max + 1:0000}";
+}
+
+static string InferTeam(string? roadmapItem)
+{
+    return roadmapItem?.ToUpperInvariant() switch
+    {
+        "R-005" => "orchestration",
+        "R-006" => "orchestration",
+        "R-007" => "platform",
+        "R-008" => "qa",
+        "R-009" => "orchestration",
+        "R-010" => "platform",
+        _ => "platform"
+    };
+}
+
+static string BuildTaskContent(
+    string taskId,
+    string title,
+    string? roadmapItem,
+    string team,
+    string priority,
+    string type)
+{
+    var goal = $"Create the smallest safe increment for: {title}.";
+    var context = string.IsNullOrWhiteSpace(roadmapItem)
+        ? "This task was generated from an explicit planning request."
+        : $"This task was generated from roadmap item {roadmapItem}.";
+
+    return $"""
+---
+id: {taskId}
+title: "{EscapeYamlValue(title)}"
+status: pending
+type: {EscapeYamlValue(type)}
+team: {EscapeYamlValue(team)}
+priority: {EscapeYamlValue(priority)}
+roadmap_item: {FormatYamlOptionalValue(roadmapItem)}
+created_by: ai-platform plan
+---
+
+# {taskId} - {title}
+
+## Goal
+
+{goal}
+
+## Context
+
+{context}
+
+## Files to read first
+
+- README.md
+- AGENTS.md
+- ai/roadmap.md
+- ai/current-state.md
+- ai/commands/plan.md
+
+## Expected files to modify
+
+- TBD by implementer
+
+## Implementation steps
+
+1. Review the files listed above.
+2. Confirm the requested scope.
+3. Implement the smallest safe increment.
+4. Update documentation if behavior changes.
+5. Validate the change.
+6. Do not move this task to done without review.
+
+## Acceptance criteria
+
+- The requested change is implemented or the task is refined with clear blockers.
+- Documentation is updated if behavior changes.
+- Validation commands pass.
+- No build artifacts are committed.
+
+## Validation
+
+- Run repository-relevant validation.
+- For CLI changes, run `dotnet build ai-platform-cli/ai-platform-cli.csproj`.
+
+## Commit and push
+
+At the end:
+1. Run `git status`.
+2. Stage the intended files.
+3. Commit with a clear message.
+4. Push the branch to the remote.
+""";
+}
+
+static string EscapeYamlValue(string value)
+{
+    return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+}
+
+static string FormatYamlOptionalValue(string? value)
+{
+    return string.IsNullOrWhiteSpace(value) ? "\"\"" : EscapeYamlValue(value);
+}
+
+static string FormatOptionalValue(string? value)
+{
+    return string.IsNullOrWhiteSpace(value) ? "none" : value;
+}
+
+static string NormalizeDisplayPath(string path)
+{
+    return path.Replace(Path.DirectorySeparatorChar, '/');
 }
 
 static List<RoadmapItem> ParseRoadmapItems(string? roadmapText)
@@ -898,6 +1149,16 @@ sealed record TaskDirectorySummary(string Label, string Path, bool Exists, int M
 sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSource);
 
 sealed record RoadmapItem(string Id, string Title, string Status);
+
+sealed class PlanOptions
+{
+    public string? RoadmapItem { get; set; }
+    public string? Title { get; set; }
+    public string? Team { get; set; }
+    public string? Priority { get; set; } = "medium";
+    public string? Type { get; set; } = "platform";
+    public bool DryRun { get; set; }
+}
 
 sealed class InstallSummary
 {

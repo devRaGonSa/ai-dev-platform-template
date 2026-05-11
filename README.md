@@ -217,7 +217,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
-| `ai-platform plan` | Prints a planning guidance message | Implemented |
+| `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
 | `ai-platform version` | Not currently available | Not implemented |
 
@@ -226,6 +226,15 @@ Important note:
 `ai-platform analyze` is read-only except for creating or updating `ai/reports/project-analysis.md`. It gives a simple operational snapshot of platform docs, task counts, roadmap markers, team docs, and command specs. It does not replace `doctor` and does not perform deep semantic analysis yet.
 
 `ai-platform roadmap-status` is read-only except for creating or updating `ai/reports/roadmap-status.md`. It parses `ai/roadmap.md` deterministically and reports roadmap item status counts. It does not validate whether code implements each item and does not replace future `reconcile` behavior.
+
+`ai-platform plan` creates one Markdown task in `ai/tasks/pending`. It requires `--title`, can associate the task with `--roadmap`, accepts optional `--team`, `--priority`, and `--type`, and supports `--dry-run`. It creates the task only; it does not implement it, move tasks, run Codex, commit, or push.
+
+Examples:
+
+```bash
+ai-platform plan --roadmap R-005 --title "Implement roadmap-driven plan command"
+ai-platform plan --title "Add team routing metadata to tasks" --dry-run
+```
 
 By default, `ai-platform init` downloads this template from the repository's current GitHub ZIP URL. You can also pass a ZIP URL explicitly or set `AI_PLATFORM_TEMPLATE_ZIP` to point at another compatible source.
 
@@ -419,7 +428,7 @@ The platform now uses a roadmap as its direction source for future work.
 - `ai/current-state.md` describes the real current state of the repository.
 - `ai/project-memory/` records decisions, risks, and known gaps that should inform future tasks.
 
-Roadmap-driven commands such as analysis, roadmap status, planning, reconciliation, implementation, and review will be implemented in later phases. These files are documentation foundations only; they do not add executable CLI behavior yet.
+Roadmap-driven commands are being implemented incrementally. The roadmap and memory files remain the direction source; command availability is documented in the CLI command table.
 
 ---
 
@@ -437,7 +446,7 @@ This is still documentation only. It does not add autonomous agents, automatic r
 
 Roadmap-driven command specs live under `ai/commands/`.
 
-They define intended behavior for future commands such as `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`. These specs are implementation contracts, not proof that each command is available in the CLI today.
+They define intended behavior for commands such as `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`. These specs are implementation contracts, not proof that each command is available in the CLI today.
 
 Future command implementations should follow these specs and update them when behavior changes.
 

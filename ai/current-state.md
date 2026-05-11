@@ -7,11 +7,12 @@ This document describes the repository as it exists now.
 The .NET CLI currently implements:
 
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
+- `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: prints a planning guidance message only; it does not generate tasks.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`, `status`, `analyze`, `roadmap-status`, `reconcile`, `implement`, or `review`.
+It does not implement `refresh`, `status`, `roadmap-status`, `reconcile`, `implement`, or `review`.
 
 ## Existing configuration
 
@@ -74,14 +75,20 @@ This model is for planning, ownership, and review guidance. There is no automati
 
 `ai/commands/` defines documentation contracts for future roadmap-driven commands: `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`.
 
-These specs do not imply CLI implementation. They are baseline contracts for future tasks and must not be presented as available commands until implemented in `ai-platform-cli/Program.cs`.
+These specs do not imply CLI implementation by themselves. `analyze` now has a first read-only CLI implementation; the other roadmap-driven command specs remain contracts for future tasks.
+
+## Current analyze behavior
+
+`ai-platform analyze` reads platform configuration, core docs, task directories, roadmap markers, team docs, command specs, known gaps, and risks. It creates or updates `ai/reports/project-analysis.md` and prints a short console summary.
+
+It does not move tasks, modify roadmap/current-state/team/command docs, execute Codex, call `run` or `refresh`, commit, push, download templates, or perform network operations.
 
 ## Known limitations
 
 - The worker is PowerShell-first.
 - The CLI is .NET-based and small.
 - `plan` is only a message, not a real roadmap-aware planner.
-- Command specs exist, but the corresponding roadmap-driven CLI behavior is not implemented yet.
+- Command specs exist, but most roadmap-driven CLI behavior is not implemented yet.
 - Local worker behavior and GitHub workflow behavior are not identical.
 - Integration tests are only a placeholder until adapted by a consumer repository.
 - Git automation assumes pull, commit, and push are acceptable for the target repository.
@@ -90,7 +97,7 @@ These specs do not imply CLI implementation. They are baseline contracts for fut
 
 ## Not yet implemented
 
-- CLI support for roadmap-driven analysis
+- deeper roadmap-driven analysis beyond the first read-only `analyze` report
 - CLI support for roadmap progress reporting
 - CLI support for task planning from roadmap items
 - CLI support for reconciliation between roadmap, code, docs, and tasks

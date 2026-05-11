@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 var command = args.Length > 0 ? args[0] : "";
 var commandArgs = args.Skip(1).ToArray();
@@ -21,6 +23,10 @@ switch (command)
 
     case "doctor":
         RunDoctor();
+        break;
+
+    case "analyze":
+        RunAnalyze();
         break;
 
     default:
@@ -199,6 +205,83 @@ static void RunDoctor()
         Console.WriteLine("Platform is not ready. Fix missing items and run `ai-platform doctor` again.");
 }
 
+static void RunAnalyze()
+{
+    var rootPath = Directory.GetCurrentDirectory();
+    var configResult = LoadPlatformConfig(rootPath);
+    var config = configResult.Config;
+    var reportPath = Path.Combine(rootPath, "ai", "reports", "project-analysis.md");
+    var reportDirectory = Path.GetDirectoryName(reportPath)!;
+
+    Directory.CreateDirectory(reportDirectory);
+
+    var roadmapPath = "ai/roadmap.md";
+    var currentStatePath = "ai/current-state.md";
+    var teamsPath = "ai/teams";
+    var commandsPath = "ai/commands";
+    var risksPath = "ai/project-memory/risks.md";
+    var knownGapsPath = "ai/project-memory/known-gaps.md";
+
+    var taskSummaries = new[]
+    {
+        SummarizeTaskDirectory("pending", config.TaskPaths.Pending!),
+        SummarizeTaskDirectory("in-progress", config.TaskPaths.InProgress!),
+        SummarizeTaskDirectory("done", config.TaskPaths.Done!)
+    };
+
+    var roadmapText = ReadTextIfExists(roadmapPath);
+    var roadmapIds = roadmapText is null
+        ? 0
+        : Regex.Matches(roadmapText, @"\bR-\d{3}\b").Count;
+    var roadmapStates = CountRoadmapStates(roadmapText);
+
+    var teamDocs = Directory.Exists(teamsPath)
+        ? Directory.GetFiles(teamsPath, "README.md", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(teamsPath, Path.GetDirectoryName(path)!))
+            .Where(name => name != ".")
+            .OrderBy(name => name)
+            .ToList()
+        : new List<string>();
+
+    var commandSpecs = Directory.Exists(commandsPath)
+        ? Directory.GetFiles(commandsPath, "*.md", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .Where(name => !string.Equals(name, "README", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(name => name)
+            .ToList()
+        : new List<string>();
+
+    var optionalConfig = ReadOptionalConfigValues(rootPath);
+    var report = BuildAnalysisReport(
+        configResult,
+        config,
+        optionalConfig,
+        taskSummaries,
+        roadmapIds,
+        roadmapStates,
+        teamDocs,
+        commandSpecs,
+        risksPath,
+        knownGapsPath);
+
+    File.WriteAllText(reportPath, report);
+
+    Console.WriteLine("AI Platform Analysis");
+    Console.WriteLine("");
+    Console.WriteLine("Report written to: ai/reports/project-analysis.md");
+    Console.WriteLine("");
+    Console.WriteLine("Summary:");
+    Console.WriteLine($"- Roadmap: {FormatFound(File.Exists(roadmapPath))}");
+    Console.WriteLine($"- Current state: {FormatFound(File.Exists(currentStatePath))}");
+    Console.WriteLine($"- Teams: {teamDocs.Count} team docs found");
+    Console.WriteLine($"- Command specs: {commandSpecs.Count} specs found");
+    Console.WriteLine($"- Tasks: pending={taskSummaries[0].MarkdownTaskCount}, in-progress={taskSummaries[1].MarkdownTaskCount}, done={taskSummaries[2].MarkdownTaskCount}");
+    Console.WriteLine("");
+    Console.WriteLine("Next step: review ai/reports/project-analysis.md");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -229,6 +312,204 @@ static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
             "invalid ai-platform.json (using built-in defaults)",
             PlatformConfig.GetAllFallbackKeys());
     }
+}
+
+static TaskDirectorySummary SummarizeTaskDirectory(string label, string path)
+{
+    if (!Directory.Exists(path))
+        return new TaskDirectorySummary(label, path, false, 0);
+
+    var count = Directory.GetFiles(path, "*.md", SearchOption.TopDirectoryOnly).Length;
+    return new TaskDirectorySummary(label, path, true, count);
+}
+
+static string? ReadTextIfExists(string path)
+{
+    return File.Exists(path) ? File.ReadAllText(path) : null;
+}
+
+static Dictionary<string, int> CountRoadmapStates(string? roadmapText)
+{
+    var states = new[] { "done", "in-progress", "planned", "blocked", "deferred" };
+    var result = states.ToDictionary(state => state, _ => 0);
+
+    if (roadmapText is null)
+        return result;
+
+    foreach (var state in states)
+        result[state] = Regex.Matches(roadmapText, $@"\b{Regex.Escape(state)}\b", RegexOptions.IgnoreCase).Count;
+
+    return result;
+}
+
+static OptionalConfigValues ReadOptionalConfigValues(string rootPath)
+{
+    var configPath = Path.Combine(rootPath, "ai-platform.json");
+    if (!File.Exists(configPath))
+        return new OptionalConfigValues("not configured", "not configured");
+
+    try
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+        var root = document.RootElement;
+        return new OptionalConfigValues(
+            ReadJsonPropertySummary(root, "managedArtifacts"),
+            ReadJsonPropertySummary(root, "templateSource"));
+    }
+    catch
+    {
+        return new OptionalConfigValues("unavailable (invalid config)", "unavailable (invalid config)");
+    }
+}
+
+static string ReadJsonPropertySummary(JsonElement root, string propertyName)
+{
+    if (!root.TryGetProperty(propertyName, out var property))
+        return "not configured";
+
+    return property.ValueKind switch
+    {
+        JsonValueKind.Array => $"{property.GetArrayLength()} item(s)",
+        JsonValueKind.Object => "configured",
+        JsonValueKind.String => property.GetString() ?? "configured",
+        JsonValueKind.Null => "not configured",
+        _ => property.ToString()
+    };
+}
+
+static string BuildAnalysisReport(
+    PlatformConfigLoadResult configResult,
+    PlatformConfig config,
+    OptionalConfigValues optionalConfig,
+    IReadOnlyList<TaskDirectorySummary> taskSummaries,
+    int roadmapIds,
+    IReadOnlyDictionary<string, int> roadmapStates,
+    IReadOnlyList<string> teamDocs,
+    IReadOnlyList<string> commandSpecs,
+    string risksPath,
+    string knownGapsPath)
+{
+    var builder = new StringBuilder();
+
+    builder.AppendLine("# Project Analysis");
+    builder.AppendLine();
+    builder.AppendLine("## Generated at");
+    builder.AppendLine();
+    builder.AppendLine(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+    builder.AppendLine();
+    builder.AppendLine("## Platform configuration");
+    builder.AppendLine();
+    builder.AppendLine($"- Platform version: {config.PlatformVersion}");
+    builder.AppendLine($"- Config status: {configResult.Status}");
+    builder.AppendLine($"- Task paths:");
+    builder.AppendLine($"  - pending: {config.TaskPaths.Pending}");
+    builder.AppendLine($"  - in-progress: {config.TaskPaths.InProgress}");
+    builder.AppendLine($"  - done: {config.TaskPaths.Done}");
+    builder.AppendLine($"- Worker lock file: {config.Worker.LockFile}");
+    builder.AppendLine($"- Managed artifacts: {optionalConfig.ManagedArtifacts}");
+    builder.AppendLine($"- Template source: {optionalConfig.TemplateSource}");
+    builder.AppendLine();
+    builder.AppendLine("## Core files");
+    builder.AppendLine();
+
+    foreach (var path in new[]
+    {
+        "ai-platform.json",
+        "AGENTS.md",
+        "README.md",
+        "ai/roadmap.md",
+        "ai/current-state.md",
+        "ai/teams/README.md",
+        "ai/commands/README.md"
+    })
+    {
+        builder.AppendLine($"- {path}: {FormatFound(File.Exists(path))}");
+    }
+
+    builder.AppendLine();
+    builder.AppendLine("## Document signals");
+    builder.AppendLine();
+    foreach (var path in new[]
+    {
+        "ai/roadmap.md",
+        "ai/current-state.md",
+        "ai/project-memory/decisions.md",
+        "ai/project-memory/risks.md",
+        "ai/project-memory/known-gaps.md",
+        "ai/teams/README.md",
+        "ai/commands/README.md"
+    })
+    {
+        AppendDocumentSignal(builder, path);
+    }
+
+    builder.AppendLine();
+    builder.AppendLine("## Task summary");
+    builder.AppendLine();
+
+    foreach (var summary in taskSummaries)
+    {
+        var status = summary.Exists ? $"{summary.MarkdownTaskCount} Markdown task(s)" : $"missing path ({summary.Path})";
+        builder.AppendLine($"- {summary.Label}: {status}");
+    }
+
+    builder.AppendLine();
+    builder.AppendLine("## Roadmap summary");
+    builder.AppendLine();
+    builder.AppendLine($"- Roadmap IDs found: {roadmapIds}");
+    foreach (var item in roadmapStates)
+        builder.AppendLine($"- `{item.Key}` occurrences: {item.Value}");
+
+    builder.AppendLine();
+    builder.AppendLine("## Team model summary");
+    builder.AppendLine();
+    builder.AppendLine($"- `ai/teams/` exists: {FormatFound(Directory.Exists("ai/teams"))}");
+    builder.AppendLine($"- Team README files found: {teamDocs.Count}");
+    builder.AppendLine($"- Teams detected: {FormatList(teamDocs)}");
+    builder.AppendLine();
+    builder.AppendLine("## Command specs summary");
+    builder.AppendLine();
+    builder.AppendLine($"- `ai/commands/` exists: {FormatFound(Directory.Exists("ai/commands"))}");
+    builder.AppendLine($"- Command specs found: {commandSpecs.Count}");
+    builder.AppendLine($"- Specs detected: {FormatList(commandSpecs)}");
+    builder.AppendLine();
+    builder.AppendLine("## Known gaps and risks");
+    builder.AppendLine();
+    AppendDocumentSignal(builder, knownGapsPath);
+    AppendDocumentSignal(builder, risksPath);
+    builder.AppendLine();
+    builder.AppendLine("## Recommendations");
+    builder.AppendLine();
+    builder.AppendLine("- Run `ai-platform roadmap-status` once implemented.");
+    builder.AppendLine("- Keep `ai/current-state.md` updated after major changes.");
+    builder.AppendLine("- Review pending tasks before running implementation automation.");
+    builder.AppendLine("- Implement command specs incrementally.");
+
+    return builder.ToString();
+}
+
+static void AppendDocumentSignal(StringBuilder builder, string path)
+{
+    var text = ReadTextIfExists(path);
+    if (text is null)
+    {
+        builder.AppendLine($"- {path}: missing");
+        return;
+    }
+
+    var lineCount = text.Split('\n').Length;
+    var headingCount = Regex.Matches(text, @"^#+\s", RegexOptions.Multiline).Count;
+    builder.AppendLine($"- {path}: found ({lineCount} line(s), {headingCount} heading(s))");
+}
+
+static string FormatFound(bool exists)
+{
+    return exists ? "found" : "missing";
+}
+
+static string FormatList(IReadOnlyList<string> items)
+{
+    return items.Count == 0 ? "none" : string.Join(", ", items);
 }
 
 static bool IsCodexAvailable()
@@ -278,6 +559,7 @@ static void ShowHelp()
     Console.WriteLine("");
     Console.WriteLine("Commands:");
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
+    Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -422,6 +704,10 @@ sealed class WorkerConfig
 {
     public string? LockFile { get; set; } = "ai/worker.lock";
 }
+
+sealed record TaskDirectorySummary(string Label, string Path, bool Exists, int MarkdownTaskCount);
+
+sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSource);
 
 sealed class InstallSummary
 {

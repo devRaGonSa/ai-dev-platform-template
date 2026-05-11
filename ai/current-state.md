@@ -59,6 +59,7 @@ The repository includes:
 - `ai/architecture-index.md`
 - `ai/repo-context.md`
 - `ai/teams/` documentation for specialized team responsibilities
+- `ai/commands/` specs for future roadmap-driven commands
 - orchestrator guidance under `ai/orchestrator/`
 - task lifecycle directories under `ai/tasks/`
 - GitHub Actions wiring for automated Codex execution
@@ -69,11 +70,18 @@ The repository includes:
 
 This model is for planning, ownership, and review guidance. There is no automatic team routing, autonomous multi-team execution, or enforced `team` metadata in tasks yet.
 
+## Current command specs
+
+`ai/commands/` defines documentation contracts for future roadmap-driven commands: `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`.
+
+These specs do not imply CLI implementation. They are baseline contracts for future tasks and must not be presented as available commands until implemented in `ai-platform-cli/Program.cs`.
+
 ## Known limitations
 
 - The worker is PowerShell-first.
 - The CLI is .NET-based and small.
 - `plan` is only a message, not a real roadmap-aware planner.
+- Command specs exist, but the corresponding roadmap-driven CLI behavior is not implemented yet.
 - Local worker behavior and GitHub workflow behavior are not identical.
 - Integration tests are only a placeholder until adapted by a consumer repository.
 - Git automation assumes pull, commit, and push are acceptable for the target repository.
@@ -82,11 +90,11 @@ This model is for planning, ownership, and review guidance. There is no automati
 
 ## Not yet implemented
 
-- roadmap-driven analysis
-- roadmap progress reporting
-- real task planning from roadmap items
-- reconciliation between roadmap, code, docs, and tasks
-- a dedicated implement command
+- CLI support for roadmap-driven analysis
+- CLI support for roadmap progress reporting
+- CLI support for task planning from roadmap items
+- CLI support for reconciliation between roadmap, code, docs, and tasks
+- a dedicated `implement` command
 - a formal review command or task review state
 - multi-agent orchestration
 - template versioning or remote upgrade management

@@ -4,12 +4,12 @@ This file tracks functional gaps that are known but not yet implemented.
 
 ## Current gaps
 
-- There is no `analyze` command.
-- There is no `roadmap-status` command.
-- There is no real `plan` command based on the roadmap.
-- There is no `reconcile` command.
-- There is no `implement` command as a replacement for `run`.
-- There is no `review` command.
+- Command specs exist, but there is no implemented `analyze` command.
+- Command specs exist, but there is no implemented `roadmap-status` command.
+- Command specs exist, but there is no implemented roadmap-driven `plan` command.
+- Command specs exist, but there is no implemented `reconcile` command.
+- Command specs exist, but there is no implemented `implement` command as a replacement for `run`.
+- Command specs exist, but there is no implemented `review` command.
 - A basic documented team model exists, but there is no automatic routing or real multi-team execution.
 - There is no formal task review state.
 - There is no comparison between roadmap and real repository state.

@@ -18,3 +18,6 @@ This file records decisions that should guide future platform work.
 - Adopt a documented specialized team model under `ai/teams/`.
 - Treat teams as planning and review ownership boundaries, not autonomous agents yet.
 - Future tasks may assign one primary `team` and optional `supporting_teams`.
+- Adopt `ai/commands/` as the documentation contract for future commands.
+- Specify commands before implementing them.
+- Do not promise CLI availability just because a command spec exists.

@@ -427,6 +427,16 @@ This is still documentation only. It does not add autonomous agents, automatic r
 
 ---
 
+## 21. Command specs
+
+Roadmap-driven command specs live under `ai/commands/`.
+
+They define intended behavior for future commands such as `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`. These specs are implementation contracts, not proof that each command is available in the CLI today.
+
+Future command implementations should follow these specs and update them when behavior changes.
+
+---
+
 ## Quick command reference
 
 ```bash

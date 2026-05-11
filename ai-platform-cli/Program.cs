@@ -33,6 +33,10 @@ switch (command)
         RunRoadmapStatus();
         break;
 
+    case "reconcile":
+        RunReconcile();
+        break;
+
     default:
         ShowHelp();
         break;
@@ -373,6 +377,82 @@ static void RunPlan(string[] commandArgs)
     Console.WriteLine("Next step: review the generated task, then run the implementation workflow.");
 }
 
+static void RunReconcile()
+{
+    var rootPath = Directory.GetCurrentDirectory();
+    var config = LoadPlatformConfig(rootPath).Config;
+    var roadmapPath = "ai/roadmap.md";
+    var knownGapsPath = "ai/project-memory/known-gaps.md";
+    var reportPath = Path.Combine(rootPath, "ai", "reports", "task-reconciliation.md");
+    var reportDirectory = Path.GetDirectoryName(reportPath)!;
+
+    Directory.CreateDirectory(reportDirectory);
+
+    var roadmapItems = ParseRoadmapItems(ReadTextIfExists(roadmapPath));
+    var roadmapIds = roadmapItems.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var taskSummaries = new[]
+    {
+        SummarizeTaskDirectory("pending", config.TaskPaths.Pending!),
+        SummarizeTaskDirectory("in-progress", config.TaskPaths.InProgress!),
+        SummarizeTaskDirectory("done", config.TaskPaths.Done!)
+    };
+    var tasks = ReadTaskFiles(config);
+    var referencedRoadmapIds = tasks
+        .SelectMany(task => task.RoadmapReferences)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var roadmapItemsWithoutTaskReferences = roadmapIds
+        .Where(id => !referencedRoadmapIds.Contains(id))
+        .OrderBy(id => id)
+        .ToList();
+    var tasksReferencingUnknownRoadmapItems = tasks
+        .SelectMany(task => task.RoadmapReferences
+            .Where(id => !roadmapIds.Contains(id))
+            .Select(id => new TaskReferenceIssue(task.DisplayPath, id)))
+        .OrderBy(issue => issue.TaskPath)
+        .ThenBy(issue => issue.RoadmapItem)
+        .ToList();
+    var doneTasksWithoutRoadmapReference = tasks
+        .Where(task => task.State == "done" && task.RoadmapReferences.Count == 0)
+        .OrderBy(task => task.DisplayPath)
+        .ToList();
+    var pendingTasksWithoutRoadmapReference = tasks
+        .Where(task => task.State == "pending" && task.RoadmapReferences.Count == 0)
+        .OrderBy(task => task.DisplayPath)
+        .ToList();
+    var weakPendingTasks = tasks
+        .Where(task => task.State == "pending" && HasWeakPendingMetadata(task))
+        .OrderBy(task => task.DisplayPath)
+        .ToList();
+    var knownGapSignals = ReadKnownGapSignals(knownGapsPath);
+
+    var report = BuildReconciliationReport(
+        taskSummaries,
+        roadmapItems,
+        referencedRoadmapIds,
+        roadmapItemsWithoutTaskReferences,
+        tasksReferencingUnknownRoadmapItems,
+        doneTasksWithoutRoadmapReference,
+        pendingTasksWithoutRoadmapReference,
+        weakPendingTasks,
+        knownGapsPath,
+        knownGapSignals);
+
+    File.WriteAllText(reportPath, report);
+
+    Console.WriteLine("AI Platform Reconcile");
+    Console.WriteLine("");
+    Console.WriteLine("Report written to: ai/reports/task-reconciliation.md");
+    Console.WriteLine("");
+    Console.WriteLine("Summary:");
+    Console.WriteLine($"- Tasks: pending={taskSummaries[0].MarkdownTaskCount}, in-progress={taskSummaries[1].MarkdownTaskCount}, done={taskSummaries[2].MarkdownTaskCount}");
+    Console.WriteLine($"- Roadmap items: {roadmapItems.Count}");
+    Console.WriteLine($"- Roadmap items without task references: {roadmapItemsWithoutTaskReferences.Count}");
+    Console.WriteLine($"- Tasks referencing unknown roadmap items: {tasksReferencingUnknownRoadmapItems.Count}");
+    Console.WriteLine($"- Stale/weak pending candidates: {weakPendingTasks.Count}");
+    Console.WriteLine("");
+    Console.WriteLine("Next step: review ai/reports/task-reconciliation.md");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -488,6 +568,222 @@ static string GetNextTaskId(PlatformConfig config)
     }
 
     return $"TASK-{max + 1:0000}";
+}
+
+static List<TaskFileInfo> ReadTaskFiles(PlatformConfig config)
+{
+    var taskRoots = new[]
+    {
+        ("pending", config.TaskPaths.Pending!),
+        ("in-progress", config.TaskPaths.InProgress!),
+        ("done", config.TaskPaths.Done!)
+    };
+    var tasks = new List<TaskFileInfo>();
+
+    foreach (var (state, path) in taskRoots)
+    {
+        if (!Directory.Exists(path))
+            continue;
+
+        foreach (var file in Directory.GetFiles(path, "*.md", SearchOption.TopDirectoryOnly).OrderBy(file => file))
+        {
+            var text = File.ReadAllText(file);
+            var references = Regex.Matches(text, @"\bR-\d{3}\b", RegexOptions.IgnoreCase)
+                .Select(match => match.Value.ToUpperInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value)
+                .ToList();
+
+            tasks.Add(new TaskFileInfo(
+                state,
+                NormalizeDisplayPath(file),
+                ExtractTaskTitle(text, file),
+                references,
+                HasTaskMetadata(text, "team"),
+                HasAcceptanceCriteria(text),
+                HasSuspiciousTaskTitle(text, file)));
+        }
+    }
+
+    return tasks;
+}
+
+static string ExtractTaskTitle(string text, string path)
+{
+    var frontMatterTitle = Regex.Match(text, @"(?im)^\s*title\s*:\s*[""']?(.+?)[""']?\s*$");
+    if (frontMatterTitle.Success)
+        return frontMatterTitle.Groups[1].Value.Trim();
+
+    var heading = Regex.Match(text, @"(?m)^#\s+(.+?)\s*$");
+    if (heading.Success)
+        return heading.Groups[1].Value.Trim();
+
+    return Path.GetFileNameWithoutExtension(path);
+}
+
+static bool HasTaskMetadata(string text, string metadataName)
+{
+    return Regex.IsMatch(text, $@"(?im)^\s*{Regex.Escape(metadataName)}\s*:");
+}
+
+static bool HasAcceptanceCriteria(string text)
+{
+    return Regex.IsMatch(text, @"(?im)^##\s+Acceptance criteria\s*$");
+}
+
+static bool HasSuspiciousTaskTitle(string text, string path)
+{
+    var title = ExtractTaskTitle(text, path);
+    return Regex.IsMatch(title, @"\b(test|temporary)\b", RegexOptions.IgnoreCase);
+}
+
+static bool HasWeakPendingMetadata(TaskFileInfo task)
+{
+    return task.RoadmapReferences.Count == 0
+        || !task.HasTeam
+        || !task.HasAcceptanceCriteria
+        || task.HasSuspiciousTitle;
+}
+
+static List<string> ReadKnownGapSignals(string knownGapsPath)
+{
+    var text = ReadTextIfExists(knownGapsPath);
+    if (text is null)
+        return new List<string>();
+
+    var keywords = new[]
+    {
+        "reconcile",
+        "implement",
+        "review",
+        "multi-task planning",
+        "routing automatico",
+        "routing automático",
+        "ejecucion multi-equipo",
+        "ejecución multi-equipo",
+        "multi-team execution"
+    };
+
+    return text.Split('\n')
+        .Select(line => line.Trim())
+        .Where(line => line.StartsWith("-", StringComparison.Ordinal))
+        .Select(line => line.TrimStart('-').Trim())
+        .Where(line => keywords.Any(keyword => line.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(line => line)
+        .ToList();
+}
+
+static string BuildReconciliationReport(
+    IReadOnlyList<TaskDirectorySummary> taskSummaries,
+    IReadOnlyList<RoadmapItem> roadmapItems,
+    IReadOnlySet<string> referencedRoadmapIds,
+    IReadOnlyList<string> roadmapItemsWithoutTaskReferences,
+    IReadOnlyList<TaskReferenceIssue> tasksReferencingUnknownRoadmapItems,
+    IReadOnlyList<TaskFileInfo> doneTasksWithoutRoadmapReference,
+    IReadOnlyList<TaskFileInfo> pendingTasksWithoutRoadmapReference,
+    IReadOnlyList<TaskFileInfo> weakPendingTasks,
+    string knownGapsPath,
+    IReadOnlyList<string> knownGapSignals)
+{
+    var builder = new StringBuilder();
+
+    builder.AppendLine("# Task Reconciliation");
+    builder.AppendLine();
+    builder.AppendLine("## Generated at");
+    builder.AppendLine();
+    builder.AppendLine(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+    builder.AppendLine();
+    builder.AppendLine("## Task summary");
+    builder.AppendLine();
+    foreach (var summary in taskSummaries)
+    {
+        var value = summary.Exists ? $"{summary.MarkdownTaskCount} Markdown task(s)" : $"missing path ({summary.Path})";
+        builder.AppendLine($"- {summary.Label}: {value}");
+    }
+
+    builder.AppendLine();
+    builder.AppendLine("## Roadmap coverage");
+    builder.AppendLine();
+    builder.AppendLine($"- Total roadmap items: {roadmapItems.Count}");
+    builder.AppendLine($"- Roadmap items referenced by tasks: {referencedRoadmapIds.Count}");
+    builder.AppendLine($"- Roadmap items with no task references: {roadmapItemsWithoutTaskReferences.Count}");
+    AppendBulletList(builder, roadmapItemsWithoutTaskReferences);
+
+    builder.AppendLine();
+    builder.AppendLine("## Task reference issues");
+    builder.AppendLine();
+    builder.AppendLine($"- Tasks referencing unknown roadmap items: {tasksReferencingUnknownRoadmapItems.Count}");
+    foreach (var issue in tasksReferencingUnknownRoadmapItems)
+        builder.AppendLine($"  - {issue.TaskPath}: {issue.RoadmapItem}");
+    builder.AppendLine($"- Done tasks without roadmap reference: {doneTasksWithoutRoadmapReference.Count}");
+    AppendTaskList(builder, doneTasksWithoutRoadmapReference);
+    builder.AppendLine($"- Pending tasks without roadmap reference: {pendingTasksWithoutRoadmapReference.Count}");
+    AppendTaskList(builder, pendingTasksWithoutRoadmapReference);
+
+    builder.AppendLine();
+    builder.AppendLine("## Stale or weak task candidates");
+    builder.AppendLine();
+    builder.AppendLine($"- Pending tasks with weak metadata: {weakPendingTasks.Count}");
+    foreach (var task in weakPendingTasks)
+    {
+        var reasons = new List<string>();
+        if (task.RoadmapReferences.Count == 0)
+            reasons.Add("missing roadmap reference");
+        if (!task.HasTeam)
+            reasons.Add("missing team");
+        if (!task.HasAcceptanceCriteria)
+            reasons.Add("missing acceptance criteria");
+        if (task.HasSuspiciousTitle)
+            reasons.Add("temporary/test wording");
+        builder.AppendLine($"  - {task.DisplayPath}: {string.Join(", ", reasons)}");
+    }
+    builder.AppendLine($"- Pending tasks missing team: {weakPendingTasks.Count(task => !task.HasTeam)}");
+    builder.AppendLine($"- Pending tasks missing acceptance criteria: {weakPendingTasks.Count(task => !task.HasAcceptanceCriteria)}");
+    builder.AppendLine($"- Pending tasks with suspicious temporary/test wording: {weakPendingTasks.Count(task => task.HasSuspiciousTitle)}");
+
+    builder.AppendLine();
+    builder.AppendLine("## Known gaps alignment");
+    builder.AppendLine();
+    builder.AppendLine($"- {knownGapsPath}: {FormatFound(File.Exists(knownGapsPath))}");
+    builder.AppendLine($"- Relevant gaps detected: {knownGapSignals.Count}");
+    AppendBulletList(builder, knownGapSignals);
+    builder.AppendLine("- `reconcile` v1 does not resolve gaps automatically; keep this file aligned after each phase.");
+
+    builder.AppendLine();
+    builder.AppendLine("## Recommendations");
+    builder.AppendLine();
+    builder.AppendLine("- Review stale pending candidates before implementation.");
+    builder.AppendLine("- Use `ai-platform plan` to create missing tasks for roadmap items.");
+    builder.AppendLine("- Do not move tasks to done without review.");
+    builder.AppendLine("- Implement review before automating task closure.");
+    builder.AppendLine("- Keep roadmap/current-state/known-gaps aligned after each phase.");
+
+    return builder.ToString();
+}
+
+static void AppendBulletList(StringBuilder builder, IReadOnlyList<string> items)
+{
+    if (items.Count == 0)
+    {
+        builder.AppendLine("  - none");
+        return;
+    }
+
+    foreach (var item in items)
+        builder.AppendLine($"  - {item}");
+}
+
+static void AppendTaskList(StringBuilder builder, IReadOnlyList<TaskFileInfo> tasks)
+{
+    if (tasks.Count == 0)
+    {
+        builder.AppendLine("  - none");
+        return;
+    }
+
+    foreach (var task in tasks)
+        builder.AppendLine($"  - {task.DisplayPath}");
 }
 
 static string InferTeam(string? roadmapItem)
@@ -999,6 +1295,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
+    Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -1149,6 +1446,17 @@ sealed record TaskDirectorySummary(string Label, string Path, bool Exists, int M
 sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSource);
 
 sealed record RoadmapItem(string Id, string Title, string Status);
+
+sealed record TaskFileInfo(
+    string State,
+    string DisplayPath,
+    string Title,
+    IReadOnlyList<string> RoadmapReferences,
+    bool HasTeam,
+    bool HasAcceptanceCriteria,
+    bool HasSuspiciousTitle);
+
+sealed record TaskReferenceIssue(string TaskPath, string RoadmapItem);
 
 sealed class PlanOptions
 {

@@ -9,11 +9,12 @@ The .NET CLI currently implements:
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
+- `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`, `status`, `reconcile`, `implement`, or `review`.
+It does not implement `refresh`, `status`, `implement`, or `review`.
 
 ## Existing configuration
 
@@ -96,12 +97,18 @@ It does not modify roadmap/current-state/task files, execute Codex, call `run` o
 
 It does not implement tasks, modify code, move tasks, update roadmap/current-state automatically, execute Codex, call `run` or `refresh`, commit, push, or perform network operations.
 
+## Current reconcile behavior
+
+`ai-platform reconcile` reads configured task directories, roadmap items, current state, and known gaps, then writes `ai/reports/task-reconciliation.md`.
+
+It detects task counts, roadmap references, roadmap items with no task references, tasks referencing unknown roadmap items, weak pending metadata, done tasks without roadmap references, and relevant known-gap signals. It does not move tasks, modify roadmap/current-state/known-gaps/task files, execute Codex, call `run`, `refresh`, or `plan`, commit, push, download templates, or perform network operations.
+
 ## Known limitations
 
 - The worker is PowerShell-first.
 - The CLI is .NET-based and small.
 - `plan` is a first simple task generator, not a deep multi-task planner.
-- Command specs exist, but most roadmap-driven CLI behavior is not implemented yet.
+- Command specs exist, but some roadmap-driven CLI behavior is not implemented yet.
 - Local worker behavior and GitHub workflow behavior are not identical.
 - Integration tests are only a placeholder until adapted by a consumer repository.
 - Git automation assumes pull, commit, and push are acceptable for the target repository.
@@ -112,7 +119,7 @@ It does not implement tasks, modify code, move tasks, update roadmap/current-sta
 
 - deeper roadmap-driven analysis beyond the first read-only reports
 - advanced planning from roadmap items, including multi-task plans and automatic team splitting
-- CLI support for reconciliation between roadmap, code, docs, and tasks
+- deeper reconciliation that proposes smarter actions or integrates with review/implement
 - a dedicated `implement` command
 - a formal review command or task review state
 - multi-agent orchestration

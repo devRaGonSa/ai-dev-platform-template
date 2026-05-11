@@ -225,6 +225,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
+| `ai-platform review` | Reviews one task and writes a read-only report at `ai/reports/task-review.md` | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -239,6 +240,8 @@ Important note:
 `ai-platform plan` creates one Markdown task in `ai/tasks/pending`. It requires `--title`, can associate the task with `--roadmap`, accepts optional `--team`, `--priority`, and `--type`, and supports `--dry-run`. It creates the task only; it does not implement it, move tasks, run Codex, commit, or push.
 
 `ai-platform reconcile` is read-only except for creating or updating `ai/reports/task-reconciliation.md`. It detects task/roadmap reference issues and stale or weak pending task candidates. It does not move tasks, mark anything done, or replace future review behavior.
+
+`ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
 
 Examples:
 
@@ -471,6 +474,7 @@ ai-platform init
 ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile
+ai-platform review --task TASK-0001
 ai-platform doctor
 ai-platform run
 ai-platform plan

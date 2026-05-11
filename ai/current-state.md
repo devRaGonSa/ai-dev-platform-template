@@ -10,11 +10,12 @@ The .NET CLI currently implements:
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
+- `ai-platform review`: writes a read-only review report for one task to `ai/reports/task-review.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`, `status`, `implement`, or `review`.
+It does not implement `refresh`, `status`, or `implement`.
 
 ## Existing configuration
 
@@ -116,6 +117,12 @@ It does not implement tasks, modify code, move tasks, update roadmap/current-sta
 
 It detects task counts, roadmap references, roadmap items with no task references, tasks referencing unknown roadmap items, weak pending metadata, done tasks without roadmap references, and relevant known-gap signals. It does not move tasks, modify roadmap/current-state/known-gaps/task files, execute Codex, call `run`, `refresh`, or `plan`, commit, push, download templates, or perform network operations.
 
+## Current review behavior
+
+`ai-platform review` accepts `--task` or `--file`, reads one task Markdown file, checks expected metadata and sections, detects simple risk signals, and writes `ai/reports/task-review.md`.
+
+It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`, or `unknown`. It does not move tasks, modify the reviewed task, modify roadmap/current-state/known-gaps, execute Codex, call other commands, commit, push, download templates, or perform network operations.
+
 ## Known limitations
 
 - The worker is PowerShell-first.
@@ -134,6 +141,6 @@ It detects task counts, roadmap references, roadmap items with no task reference
 - advanced planning from roadmap items, including multi-task plans and automatic team splitting
 - deeper reconciliation that proposes smarter actions or integrates with review/implement
 - a dedicated `implement` command
-- a formal review command and safe state transitions
+- safe automated state transitions based on review outcomes
 - multi-agent orchestration
 - template versioning or remote upgrade management

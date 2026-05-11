@@ -37,6 +37,10 @@ switch (command)
         RunReconcile();
         break;
 
+    case "review":
+        RunReview(commandArgs);
+        break;
+
     default:
         ShowHelp();
         break;
@@ -453,6 +457,58 @@ static void RunReconcile()
     Console.WriteLine("Next step: review ai/reports/task-reconciliation.md");
 }
 
+static void RunReview(string[] commandArgs)
+{
+    var options = ParseReviewOptions(commandArgs);
+    if (string.IsNullOrWhiteSpace(options.TaskId) && string.IsNullOrWhiteSpace(options.FilePath))
+    {
+        ShowReviewHelp();
+        return;
+    }
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var taskPath = ResolveReviewTaskPath(options);
+    if (taskPath is null)
+    {
+        var target = string.IsNullOrWhiteSpace(options.FilePath) ? options.TaskId : options.FilePath;
+        Console.WriteLine($"Task not found: {target}");
+        return;
+    }
+
+    var text = File.ReadAllText(taskPath);
+    var roadmapIds = ParseRoadmapItems(ReadTextIfExists("ai/roadmap.md"))
+        .Select(item => item.Id)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var result = AnalyzeTaskForReview(taskPath, text, roadmapIds, options.Strict);
+    var reportPath = Path.Combine(rootPath, "ai", "reports", "task-review.md");
+    Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+    File.WriteAllText(reportPath, BuildTaskReviewReport(result));
+
+    var okCount = result.Checks.Count(check => check.Status == "OK");
+    var missingCount = result.Checks.Count(check => check.Status == "MISSING");
+    var warningCount = result.Checks.Count(check => check.Status == "WARNING");
+
+    Console.WriteLine("AI Platform Review");
+    Console.WriteLine("");
+    Console.WriteLine("Report written to: ai/reports/task-review.md");
+    Console.WriteLine("");
+    Console.WriteLine("Reviewed task:");
+    Console.WriteLine($"- ID: {result.TaskId}");
+    Console.WriteLine($"- File: {result.DisplayPath}");
+    Console.WriteLine($"- Status: {FormatOptionalValue(result.DetectedStatus)}");
+    Console.WriteLine($"- Team: {FormatOptionalValue(result.DetectedTeam)}");
+    Console.WriteLine($"- Roadmap item: {FormatOptionalValue(result.DetectedRoadmapItem)}");
+    Console.WriteLine("");
+    Console.WriteLine("Checks:");
+    Console.WriteLine($"- OK: {okCount}");
+    Console.WriteLine($"- Missing: {missingCount}");
+    Console.WriteLine($"- Warnings: {warningCount}");
+    Console.WriteLine("");
+    Console.WriteLine($"Recommended outcome: {result.RecommendedOutcome}");
+    Console.WriteLine("");
+    Console.WriteLine("Next step: review ai/reports/task-review.md");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -483,6 +539,364 @@ static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
             "invalid ai-platform.json (using built-in defaults)",
             PlatformConfig.GetAllFallbackKeys());
     }
+}
+
+static ReviewOptions ParseReviewOptions(string[] args)
+{
+    var options = new ReviewOptions();
+
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        switch (arg)
+        {
+            case "--task":
+                options.TaskId = ReadOptionValue(args, ref index, arg).ToUpperInvariant();
+                break;
+            case "--file":
+                options.FilePath = ReadOptionValue(args, ref index, arg);
+                break;
+            case "--strict":
+                options.Strict = true;
+                break;
+            case "-h":
+            case "--help":
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown review argument: {arg}");
+                break;
+        }
+    }
+
+    return options;
+}
+
+static void ShowReviewHelp()
+{
+    Console.WriteLine("AI Platform Review");
+    Console.WriteLine("");
+    Console.WriteLine("Reviews one task and writes ai/reports/task-review.md.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform review --task TASK-0001 [--strict]");
+    Console.WriteLine("  ai-platform review --file ai/tasks/review/TASK-0001.md [--strict]");
+    Console.WriteLine("");
+    Console.WriteLine("If both --task and --file are provided, --file is used.");
+}
+
+static string? ResolveReviewTaskPath(ReviewOptions options)
+{
+    if (!string.IsNullOrWhiteSpace(options.FilePath))
+        return File.Exists(options.FilePath) ? options.FilePath : null;
+
+    if (string.IsNullOrWhiteSpace(options.TaskId))
+        return null;
+
+    var taskId = options.TaskId.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+        ? Path.GetFileNameWithoutExtension(options.TaskId)
+        : options.TaskId;
+    var searchRoots = new[]
+    {
+        "ai/tasks/review",
+        "ai/tasks/in-progress",
+        "ai/tasks/pending",
+        "ai/tasks/done",
+        "ai/tasks/blocked",
+        "ai/tasks/obsolete"
+    };
+
+    foreach (var root in searchRoots.Where(Directory.Exists))
+    {
+        var directPath = Path.Combine(root, $"{taskId}.md");
+        if (File.Exists(directPath))
+            return directPath;
+
+        var match = Directory.GetFiles(root, $"{taskId}*.md", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => path)
+            .FirstOrDefault();
+        if (match is not null)
+            return match;
+    }
+
+    return null;
+}
+
+static TaskReviewResult AnalyzeTaskForReview(
+    string path,
+    string text,
+    IReadOnlySet<string> roadmapIds,
+    bool strict)
+{
+    var displayPath = NormalizeDisplayPath(path);
+    var taskId = DetectTaskId(text, path);
+    var title = ExtractTaskTitle(text, path);
+    var detectedStatus = ReadMetadataValue(text, "status");
+    var detectedTeam = ReadMetadataValue(text, "team");
+    var detectedType = ReadMetadataValue(text, "type");
+    var detectedPriority = ReadMetadataValue(text, "priority");
+    var roadmapReferences = Regex.Matches(text, @"\bR-\d{3}\b", RegexOptions.IgnoreCase)
+        .Select(match => match.Value.ToUpperInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(value => value)
+        .ToList();
+    var detectedRoadmapItem = ReadMetadataValue(text, "roadmap_item")
+        ?? roadmapReferences.FirstOrDefault();
+    var folderStatus = DetectStatusFromPath(path);
+    var checks = new List<ReviewCheck>
+    {
+        BuildCheck("task id", !string.IsNullOrWhiteSpace(taskId), "Task ID detected."),
+        BuildCheck("title", !string.IsNullOrWhiteSpace(title), "Title detected."),
+        BuildStatusCheck(detectedStatus),
+        BuildCheck("team", !string.IsNullOrWhiteSpace(detectedTeam), "Team detected."),
+        BuildCheck("roadmap item", !string.IsNullOrWhiteSpace(detectedRoadmapItem), "Roadmap item or R-xxx reference detected."),
+        BuildCheck("acceptance criteria", HasAcceptanceCriteria(text), "Acceptance criteria section detected."),
+        BuildCheck("validation", HasHeading(text, "Validation"), "Validation section detected."),
+        BuildCheck("commit and push", HasHeading(text, "Commit and push"), "Commit and push section detected."),
+        BuildCheck("files to read first", HasHeading(text, "Files to read first"), "Files to read first section detected."),
+        BuildCheck("expected files to modify", HasHeading(text, "Expected files to modify"), "Expected files to modify section detected."),
+        BuildCheck("implementation steps", HasHeading(text, "Implementation steps") || HasHeading(text, "Steps"), "Implementation steps or steps section detected.")
+    };
+    var issues = BuildReviewIssues(
+        text,
+        taskId,
+        detectedStatus,
+        folderStatus,
+        detectedTeam,
+        detectedRoadmapItem,
+        roadmapReferences,
+        roadmapIds,
+        checks,
+        strict);
+    var outcome = DetermineReviewOutcome(text, detectedStatus, folderStatus, checks, issues, detectedTeam, detectedRoadmapItem);
+    var recommendations = BuildReviewRecommendations(outcome, issues);
+
+    return new TaskReviewResult(
+        taskId ?? Path.GetFileNameWithoutExtension(path),
+        displayPath,
+        detectedStatus,
+        folderStatus,
+        detectedTeam,
+        detectedType,
+        detectedPriority,
+        detectedRoadmapItem,
+        title,
+        checks,
+        issues,
+        outcome,
+        recommendations);
+}
+
+static string? DetectTaskId(string text, string path)
+{
+    var metadata = ReadMetadataValue(text, "id");
+    if (!string.IsNullOrWhiteSpace(metadata) && Regex.IsMatch(metadata, @"^TASK-\d+", RegexOptions.IgnoreCase))
+        return metadata.ToUpperInvariant();
+
+    var match = Regex.Match(text, @"\bTASK-\d+\b", RegexOptions.IgnoreCase);
+    if (match.Success)
+        return match.Value.ToUpperInvariant();
+
+    var fileMatch = Regex.Match(Path.GetFileName(path), @"\bTASK-\d+\b", RegexOptions.IgnoreCase);
+    return fileMatch.Success ? fileMatch.Value.ToUpperInvariant() : null;
+}
+
+static string? ReadMetadataValue(string text, string metadataName)
+{
+    var match = Regex.Match(text, $@"(?im)^\s*{Regex.Escape(metadataName)}\s*:\s*[""']?(.+?)[""']?\s*$");
+    if (!match.Success)
+        return null;
+
+    var value = match.Groups[1].Value.Trim().Trim('"', '\'');
+    return string.IsNullOrWhiteSpace(value) ? null : value;
+}
+
+static string DetectStatusFromPath(string path)
+{
+    var normalized = NormalizeDisplayPath(path).ToLowerInvariant();
+    foreach (var status in new[] { "review", "in-progress", "pending", "done", "blocked", "obsolete" })
+    {
+        if (normalized.Contains($"/{status}/", StringComparison.Ordinal))
+            return status;
+    }
+
+    return "unknown";
+}
+
+static ReviewCheck BuildCheck(string name, bool passed, string message)
+{
+    return new ReviewCheck(name, passed ? "OK" : "MISSING", passed ? message : $"{name} is missing.");
+}
+
+static ReviewCheck BuildStatusCheck(string? status)
+{
+    if (string.IsNullOrWhiteSpace(status))
+        return new ReviewCheck("status", "MISSING", "status is missing.");
+
+    var allowed = new[] { "pending", "in-progress", "review", "done", "blocked", "obsolete" };
+    return allowed.Contains(status, StringComparer.OrdinalIgnoreCase)
+        ? new ReviewCheck("status", "OK", $"status detected: {status}.")
+        : new ReviewCheck("status", "WARNING", $"unknown status: {status}.");
+}
+
+static bool HasHeading(string text, string heading)
+{
+    return Regex.IsMatch(text, $@"(?im)^##\s+{Regex.Escape(heading)}\s*$");
+}
+
+static List<string> BuildReviewIssues(
+    string text,
+    string? taskId,
+    string? detectedStatus,
+    string folderStatus,
+    string? detectedTeam,
+    string? detectedRoadmapItem,
+    IReadOnlyList<string> roadmapReferences,
+    IReadOnlySet<string> roadmapIds,
+    IReadOnlyList<ReviewCheck> checks,
+    bool strict)
+{
+    var issues = new List<string>();
+
+    foreach (var check in checks.Where(check => check.Status != "OK"))
+        issues.Add($"{check.Name}: {check.Message}");
+
+    if (string.Equals(folderStatus, "done", StringComparison.OrdinalIgnoreCase) && !HasAcceptanceCriteria(text))
+        issues.Add("task is in done but has no acceptance criteria.");
+
+    if (string.Equals(folderStatus, "pending", StringComparison.OrdinalIgnoreCase)
+        && Regex.IsMatch(ExtractTaskTitle(text, taskId ?? ""), @"\b(test|temporary)\b", RegexOptions.IgnoreCase))
+        issues.Add("pending task title contains test or temporary wording.");
+
+    foreach (var roadmapReference in roadmapReferences.Where(reference => !roadmapIds.Contains(reference)))
+        issues.Add($"task references unknown roadmap item: {roadmapReference}.");
+
+    if (!string.IsNullOrWhiteSpace(detectedStatus)
+        && folderStatus != "unknown"
+        && !string.Equals(NormalizeTaskStatus(detectedStatus), folderStatus, StringComparison.OrdinalIgnoreCase))
+        issues.Add($"task folder '{folderStatus}' does not match detected status '{detectedStatus}'.");
+
+    if (strict && string.IsNullOrWhiteSpace(detectedRoadmapItem))
+        issues.Add("strict mode requires a roadmap item or explicit R-xxx reference.");
+
+    if (string.IsNullOrWhiteSpace(detectedTeam))
+        issues.Add("team is missing.");
+
+    return issues.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(issue => issue).ToList();
+}
+
+static string DetermineReviewOutcome(
+    string text,
+    string? detectedStatus,
+    string folderStatus,
+    IReadOnlyList<ReviewCheck> checks,
+    IReadOnlyList<string> issues,
+    string? detectedTeam,
+    string? detectedRoadmapItem)
+{
+    if (Regex.IsMatch(text, @"\b(obsolete|superseded|no longer needed)\b", RegexOptions.IgnoreCase))
+        return "obsolete-candidate";
+
+    if (Regex.IsMatch(text, @"\b(blocked|waiting|dependency|cannot proceed)\b", RegexOptions.IgnoreCase))
+        return "blocked";
+
+    var missingCritical = checks.Any(check =>
+        check.Status == "MISSING"
+        && new[] { "acceptance criteria", "validation", "team", "implementation steps" }
+            .Contains(check.Name, StringComparer.OrdinalIgnoreCase));
+    if (missingCritical)
+        return "needs-rework";
+
+    var hasReviewStatus = string.Equals(detectedStatus, "review", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(folderStatus, "review", StringComparison.OrdinalIgnoreCase);
+    var hasRequiredSignals = hasReviewStatus
+        && !string.IsNullOrWhiteSpace(detectedTeam)
+        && !string.IsNullOrWhiteSpace(detectedRoadmapItem)
+        && checks.Where(check => check.Name is "acceptance criteria" or "validation")
+            .All(check => check.Status == "OK")
+        && issues.Count == 0;
+
+    if (hasRequiredSignals)
+        return "ready-for-done";
+
+    return issues.Count > 0 ? "needs-rework" : "unknown";
+}
+
+static string NormalizeTaskStatus(string status)
+{
+    var normalized = status.Trim().ToLowerInvariant();
+    return normalized switch
+    {
+        "pending" => "pending",
+        "in-progress" => "in-progress",
+        "in progress" => "in-progress",
+        "review" => "review",
+        "done" => "done",
+        "blocked" => "blocked",
+        "obsolete" => "obsolete",
+        _ => "unknown"
+    };
+}
+
+static List<string> BuildReviewRecommendations(string outcome, IReadOnlyList<string> issues)
+{
+    var recommendations = new List<string>();
+
+    if (issues.Count > 0)
+        recommendations.Add("Resolve reported issues before moving the task to done.");
+
+    recommendations.Add(outcome switch
+    {
+        "ready-for-done" => "Confirm validation evidence and repository policy before moving to done.",
+        "blocked" => "Move or keep the task in blocked only after confirming the dependency.",
+        "obsolete-candidate" => "Use review or reconciliation to confirm whether the task should move to obsolete.",
+        "needs-rework" => "Update the task or implementation, then run review again.",
+        _ => "Add missing evidence or metadata, then run review again."
+    });
+    recommendations.Add("Do not move tasks automatically based only on this report.");
+
+    return recommendations.Distinct().ToList();
+}
+
+static string BuildTaskReviewReport(TaskReviewResult result)
+{
+    var builder = new StringBuilder();
+
+    builder.AppendLine("# Task Review");
+    builder.AppendLine();
+    builder.AppendLine("## Generated at");
+    builder.AppendLine();
+    builder.AppendLine(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+    builder.AppendLine();
+    builder.AppendLine("## Reviewed task");
+    builder.AppendLine();
+    builder.AppendLine($"- Task ID: {result.TaskId}");
+    builder.AppendLine($"- File path: {result.DisplayPath}");
+    builder.AppendLine($"- Detected status: {FormatOptionalValue(result.DetectedStatus)}");
+    builder.AppendLine($"- Folder status: {result.FolderStatus}");
+    builder.AppendLine($"- Detected team: {FormatOptionalValue(result.DetectedTeam)}");
+    builder.AppendLine($"- Detected roadmap item: {FormatOptionalValue(result.DetectedRoadmapItem)}");
+    builder.AppendLine($"- Detected title: {FormatOptionalValue(result.DetectedTitle)}");
+    builder.AppendLine();
+    builder.AppendLine("## Structural checks");
+    builder.AppendLine();
+    builder.AppendLine("| Check | Result | Notes |");
+    builder.AppendLine("|---|---|---|");
+    foreach (var check in result.Checks)
+        builder.AppendLine($"| {EscapeTableCell(check.Name)} | {check.Status} | {EscapeTableCell(check.Message)} |");
+    builder.AppendLine();
+    builder.AppendLine("## Issues");
+    builder.AppendLine();
+    AppendBulletList(builder, result.Issues);
+    builder.AppendLine();
+    builder.AppendLine("## Recommended outcome");
+    builder.AppendLine();
+    builder.AppendLine(result.RecommendedOutcome);
+    builder.AppendLine();
+    builder.AppendLine("## Recommendations");
+    builder.AppendLine();
+    AppendBulletList(builder, result.Recommendations);
+
+    return builder.ToString();
 }
 
 static PlanOptions ParsePlanOptions(string[] args)
@@ -1296,6 +1710,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
+    Console.WriteLine("  ai-platform review           Generate read-only task review report");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -1457,6 +1872,30 @@ sealed record TaskFileInfo(
     bool HasSuspiciousTitle);
 
 sealed record TaskReferenceIssue(string TaskPath, string RoadmapItem);
+
+sealed record ReviewCheck(string Name, string Status, string Message);
+
+sealed record TaskReviewResult(
+    string TaskId,
+    string DisplayPath,
+    string? DetectedStatus,
+    string FolderStatus,
+    string? DetectedTeam,
+    string? DetectedType,
+    string? DetectedPriority,
+    string? DetectedRoadmapItem,
+    string? DetectedTitle,
+    IReadOnlyList<ReviewCheck> Checks,
+    IReadOnlyList<string> Issues,
+    string RecommendedOutcome,
+    IReadOnlyList<string> Recommendations);
+
+sealed class ReviewOptions
+{
+    public string? TaskId { get; set; }
+    public string? FilePath { get; set; }
+    public bool Strict { get; set; }
+}
 
 sealed class PlanOptions
 {

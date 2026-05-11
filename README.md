@@ -215,6 +215,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 |---|---|---|
 | `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
+| `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Prints a planning guidance message | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -223,6 +224,8 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 Important note:
 
 `ai-platform analyze` is read-only except for creating or updating `ai/reports/project-analysis.md`. It gives a simple operational snapshot of platform docs, task counts, roadmap markers, team docs, and command specs. It does not replace `doctor` and does not perform deep semantic analysis yet.
+
+`ai-platform roadmap-status` is read-only except for creating or updating `ai/reports/roadmap-status.md`. It parses `ai/roadmap.md` deterministically and reports roadmap item status counts. It does not validate whether code implements each item and does not replace future `reconcile` behavior.
 
 By default, `ai-platform init` downloads this template from the repository's current GitHub ZIP URL. You can also pass a ZIP URL explicitly or set `AI_PLATFORM_TEMPLATE_ZIP` to point at another compatible source.
 
@@ -445,6 +448,7 @@ Future command implementations should follow these specs and update them when be
 ```bash
 ai-platform init
 ai-platform analyze
+ai-platform roadmap-status
 ai-platform doctor
 ai-platform run
 ai-platform plan

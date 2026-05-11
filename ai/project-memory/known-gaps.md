@@ -5,7 +5,7 @@ This file tracks functional gaps that are known but not yet implemented.
 ## Current gaps
 
 - A first read-only `analyze` command exists, but deeper analysis and integration with `roadmap-status` or `reconcile` are still pending.
-- Command specs exist, but there is no implemented `roadmap-status` command.
+- A first read-only `roadmap-status` command exists, but real reconciliation against code and tasks is still pending.
 - Command specs exist, but there is no implemented roadmap-driven `plan` command.
 - Command specs exist, but there is no implemented `reconcile` command.
 - Command specs exist, but there is no implemented `implement` command as a replacement for `run`.

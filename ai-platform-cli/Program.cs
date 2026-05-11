@@ -29,6 +29,10 @@ switch (command)
         RunAnalyze();
         break;
 
+    case "roadmap-status":
+        RunRoadmapStatus();
+        break;
+
     default:
         ShowHelp();
         break;
@@ -282,6 +286,39 @@ static void RunAnalyze()
     Console.WriteLine("Next step: review ai/reports/project-analysis.md");
 }
 
+static void RunRoadmapStatus()
+{
+    var rootPath = Directory.GetCurrentDirectory();
+    var roadmapPath = "ai/roadmap.md";
+    var reportPath = Path.Combine(rootPath, "ai", "reports", "roadmap-status.md");
+    var reportDirectory = Path.GetDirectoryName(reportPath)!;
+
+    Directory.CreateDirectory(reportDirectory);
+
+    var roadmapExists = File.Exists(roadmapPath);
+    var roadmapText = ReadTextIfExists(roadmapPath);
+    var items = ParseRoadmapItems(roadmapText);
+    var counts = CountRoadmapItemsByStatus(items);
+    var report = BuildRoadmapStatusReport(roadmapExists, items, counts);
+
+    File.WriteAllText(reportPath, report);
+
+    Console.WriteLine("AI Platform Roadmap Status");
+    Console.WriteLine("");
+    Console.WriteLine("Report written to: ai/reports/roadmap-status.md");
+    Console.WriteLine("");
+    Console.WriteLine("Summary:");
+    Console.WriteLine($"- Total items: {items.Count}");
+    Console.WriteLine($"- Done: {counts["done"]}");
+    Console.WriteLine($"- In progress: {counts["in-progress"]}");
+    Console.WriteLine($"- Planned: {counts["planned"]}");
+    Console.WriteLine($"- Blocked: {counts["blocked"]}");
+    Console.WriteLine($"- Deferred: {counts["deferred"]}");
+    Console.WriteLine($"- Unknown: {counts["unknown"]}");
+    Console.WriteLine("");
+    Console.WriteLine("Next step: review ai/reports/roadmap-status.md");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -312,6 +349,156 @@ static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
             "invalid ai-platform.json (using built-in defaults)",
             PlatformConfig.GetAllFallbackKeys());
     }
+}
+
+static List<RoadmapItem> ParseRoadmapItems(string? roadmapText)
+{
+    var items = new List<RoadmapItem>();
+    if (string.IsNullOrWhiteSpace(roadmapText))
+        return items;
+
+    var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var lines = roadmapText.Split('\n');
+
+    foreach (var line in lines)
+    {
+        var tableMatch = Regex.Match(line, @"^\|\s*(R-\d{3})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|", RegexOptions.IgnoreCase);
+        if (!tableMatch.Success)
+            continue;
+
+        var id = tableMatch.Groups[1].Value.Trim();
+        if (!seenIds.Add(id))
+            continue;
+
+        items.Add(new RoadmapItem(
+            id,
+            CleanMarkdownCell(tableMatch.Groups[2].Value),
+            NormalizeRoadmapStatus(tableMatch.Groups[3].Value)));
+    }
+
+    var headingMatches = Regex.Matches(roadmapText, @"(?m)^#{1,6}\s+(R-\d{3})(?:\s*[-:]\s*(.+?))?\s*$", RegexOptions.IgnoreCase);
+    for (var index = 0; index < headingMatches.Count; index++)
+    {
+        var match = headingMatches[index];
+        var id = match.Groups[1].Value.Trim();
+        if (!seenIds.Add(id))
+            continue;
+
+        var title = match.Groups[2].Success ? match.Groups[2].Value.Trim() : "Unknown";
+        var blockStart = match.Index + match.Length;
+        var blockEnd = index + 1 < headingMatches.Count ? headingMatches[index + 1].Index : roadmapText.Length;
+        var block = roadmapText[blockStart..blockEnd];
+        var statusMatch = Regex.Match(block, @"(?im)^\s*(?:-\s*)?(?:\*\*)?Status(?:\*\*)?\s*:?\s*`?([A-Za-z-]+)");
+        var status = statusMatch.Success ? NormalizeRoadmapStatus(statusMatch.Groups[1].Value) : "unknown";
+
+        items.Add(new RoadmapItem(id, string.IsNullOrWhiteSpace(title) ? "Unknown" : title, status));
+    }
+
+    return items.OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase).ToList();
+}
+
+static string CleanMarkdownCell(string value)
+{
+    return value.Trim().Trim('`').Trim();
+}
+
+static string NormalizeRoadmapStatus(string value)
+{
+    var normalized = CleanMarkdownCell(value).ToLowerInvariant();
+    return normalized switch
+    {
+        "done" => "done",
+        "in-progress" => "in-progress",
+        "in progress" => "in-progress",
+        "planned" => "planned",
+        "blocked" => "blocked",
+        "deferred" => "deferred",
+        _ => "unknown"
+    };
+}
+
+static Dictionary<string, int> CountRoadmapItemsByStatus(IReadOnlyList<RoadmapItem> items)
+{
+    var result = new[] { "done", "in-progress", "planned", "blocked", "deferred", "unknown" }
+        .ToDictionary(status => status, _ => 0);
+
+    foreach (var item in items)
+        result[item.Status] = result.TryGetValue(item.Status, out var count) ? count + 1 : 1;
+
+    return result;
+}
+
+static string BuildRoadmapStatusReport(
+    bool roadmapExists,
+    IReadOnlyList<RoadmapItem> items,
+    IReadOnlyDictionary<string, int> counts)
+{
+    var builder = new StringBuilder();
+
+    builder.AppendLine("# Roadmap Status");
+    builder.AppendLine();
+    builder.AppendLine("## Generated at");
+    builder.AppendLine();
+    builder.AppendLine(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+    builder.AppendLine();
+    builder.AppendLine("## Summary");
+    builder.AppendLine();
+    builder.AppendLine($"- Total roadmap items: {items.Count}");
+    builder.AppendLine($"- Done: {counts["done"]}");
+    builder.AppendLine($"- In-progress: {counts["in-progress"]}");
+    builder.AppendLine($"- Planned: {counts["planned"]}");
+    builder.AppendLine($"- Blocked: {counts["blocked"]}");
+    builder.AppendLine($"- Deferred: {counts["deferred"]}");
+    builder.AppendLine($"- Unknown: {counts["unknown"]}");
+    builder.AppendLine();
+    builder.AppendLine("## Items");
+    builder.AppendLine();
+    builder.AppendLine("| ID | Title | Status |");
+    builder.AppendLine("|---|---|---|");
+
+    foreach (var item in items)
+        builder.AppendLine($"| {item.Id} | {EscapeTableCell(item.Title)} | {item.Status} |");
+
+    if (items.Count == 0)
+        builder.AppendLine("| none | none | unknown |");
+
+    builder.AppendLine();
+    builder.AppendLine("## Status by phase");
+    builder.AppendLine();
+    builder.AppendLine("| ID | Status |");
+    builder.AppendLine("|---|---|");
+    foreach (var item in items)
+        builder.AppendLine($"| {item.Id} | {item.Status} |");
+
+    if (items.Count == 0)
+        builder.AppendLine("| none | unknown |");
+
+    builder.AppendLine();
+    builder.AppendLine("## Observations");
+    builder.AppendLine();
+    if (!roadmapExists)
+        builder.AppendLine("- `ai/roadmap.md` is missing.");
+    if (roadmapExists && items.Count == 0)
+        builder.AppendLine("- `ai/roadmap.md` exists but no roadmap items were detected.");
+    if (counts["unknown"] > 0)
+        builder.AppendLine("- Some roadmap items have unknown status.");
+    if (items.Count > 0 && counts.Any(count => count.Value == items.Count))
+        builder.AppendLine("- All detected roadmap items currently share the same status.");
+    builder.AppendLine("- This command does not semantically validate whether code implements each roadmap item yet.");
+    builder.AppendLine("- Use `reconcile` later to compare roadmap, tasks, and code evidence.");
+    builder.AppendLine();
+    builder.AppendLine("## Next steps");
+    builder.AppendLine();
+    builder.AppendLine("- Keep `ai/roadmap.md` updated after each phase.");
+    builder.AppendLine("- Use `ai-platform analyze` for broader project state.");
+    builder.AppendLine("- Implement `reconcile` later to compare roadmap, tasks, and code evidence.");
+
+    return builder.ToString();
+}
+
+static string EscapeTableCell(string value)
+{
+    return value.Replace("|", "\\|").Trim();
 }
 
 static TaskDirectorySummary SummarizeTaskDirectory(string label, string path)
@@ -560,6 +747,7 @@ static void ShowHelp()
     Console.WriteLine("Commands:");
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
+    Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -708,6 +896,8 @@ sealed class WorkerConfig
 sealed record TaskDirectorySummary(string Label, string Path, bool Exists, int MarkdownTaskCount);
 
 sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSource);
+
+sealed record RoadmapItem(string Id, string Title, string Status);
 
 sealed class InstallSummary
 {

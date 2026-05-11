@@ -8,11 +8,12 @@ The .NET CLI currently implements:
 
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
+- `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: prints a planning guidance message only; it does not generate tasks.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`, `status`, `roadmap-status`, `reconcile`, `implement`, or `review`.
+It does not implement `refresh`, `status`, `reconcile`, `implement`, or `review`.
 
 ## Existing configuration
 
@@ -75,13 +76,19 @@ This model is for planning, ownership, and review guidance. There is no automati
 
 `ai/commands/` defines documentation contracts for future roadmap-driven commands: `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`.
 
-These specs do not imply CLI implementation by themselves. `analyze` now has a first read-only CLI implementation; the other roadmap-driven command specs remain contracts for future tasks.
+These specs do not imply CLI implementation by themselves. `analyze` and `roadmap-status` now have first read-only CLI implementations; the other roadmap-driven command specs remain contracts for future tasks.
 
 ## Current analyze behavior
 
 `ai-platform analyze` reads platform configuration, core docs, task directories, roadmap markers, team docs, command specs, known gaps, and risks. It creates or updates `ai/reports/project-analysis.md` and prints a short console summary.
 
 It does not move tasks, modify roadmap/current-state/team/command docs, execute Codex, call `run` or `refresh`, commit, push, download templates, or perform network operations.
+
+## Current roadmap-status behavior
+
+`ai-platform roadmap-status` reads `ai/roadmap.md`, detects roadmap item IDs, titles, and statuses, counts items by status, and creates or updates `ai/reports/roadmap-status.md`.
+
+It does not modify roadmap/current-state/task files, execute Codex, call `run` or `refresh`, commit, push, download templates, perform network operations, or validate whether code implements each roadmap item.
 
 ## Known limitations
 
@@ -97,8 +104,7 @@ It does not move tasks, modify roadmap/current-state/team/command docs, execute 
 
 ## Not yet implemented
 
-- deeper roadmap-driven analysis beyond the first read-only `analyze` report
-- CLI support for roadmap progress reporting
+- deeper roadmap-driven analysis beyond the first read-only reports
 - CLI support for task planning from roadmap items
 - CLI support for reconciliation between roadmap, code, docs, and tasks
 - a dedicated `implement` command

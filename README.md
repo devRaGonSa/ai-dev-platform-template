@@ -405,6 +405,18 @@ These are future improvements, not claims about current behavior:
 
 ---
 
+## 19. Roadmap and project memory
+
+The platform now uses a roadmap as its direction source for future work.
+
+- `ai/roadmap.md` is the initial roadmap for the next platform evolution.
+- `ai/current-state.md` describes the real current state of the repository.
+- `ai/project-memory/` records decisions, risks, and known gaps that should inform future tasks.
+
+Roadmap-driven commands such as analysis, roadmap status, planning, reconciliation, implementation, and review will be implemented in later phases. These files are documentation foundations only; they do not add executable CLI behavior yet.
+
+---
+
 ## Quick command reference
 
 ```bash

@@ -2120,6 +2120,15 @@ sealed class PlatformConfig
         return new PlatformConfig
         {
             PlatformVersion = "1.0",
+            TemplateSourceZip = "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
+            ManagedArtifacts = new List<string>
+            {
+                "ai",
+                "scripts",
+                ".github",
+                "AGENTS.md",
+                "ai-platform.json"
+            },
             RequiredTemplatePaths = new List<string>
             {
                 "ai",
@@ -2154,6 +2163,18 @@ sealed class PlatformConfig
         {
             normalized.RequiredTemplatePaths = defaults.RequiredTemplatePaths;
             fallbackKeys.Add("requiredTemplatePaths");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalized.TemplateSourceZip))
+        {
+            normalized.TemplateSourceZip = defaults.TemplateSourceZip;
+            fallbackKeys.Add("templateSourceZip");
+        }
+
+        if (normalized.ManagedArtifacts.Count == 0)
+        {
+            normalized.ManagedArtifacts = defaults.ManagedArtifacts;
+            fallbackKeys.Add("managedArtifacts");
         }
 
         if (normalized.TaskPaths is null)
@@ -2232,6 +2253,8 @@ sealed class PlatformConfig
         return new List<string>
         {
             "platformVersion",
+            "templateSourceZip",
+            "managedArtifacts",
             "requiredTemplatePaths",
             "taskPaths.pending",
             "taskPaths.inProgress",
@@ -2239,8 +2262,8 @@ sealed class PlatformConfig
             "taskPaths.blocked",
             "taskPaths.obsolete",
             "taskPaths.done",
-            "worker.lockFile"
-            ,"worker.pollIntervalSeconds"
+            "worker.lockFile",
+            "worker.pollIntervalSeconds"
         };
     }
 }

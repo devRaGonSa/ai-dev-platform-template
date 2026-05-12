@@ -1,5 +1,13 @@
 {
   "platformVersion": "1.0",
+  "templateSourceZip": "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
+  "managedArtifacts": [
+    "ai",
+    "scripts",
+    ".github",
+    "AGENTS.md",
+    "ai-platform.json"
+  ],
   "requiredTemplatePaths": [
     "ai",
     "scripts",

@@ -15,5 +15,5 @@ This file tracks functional gaps that are known but not yet implemented.
 - The formal `review` state exists, but automated state transitions from review outcomes are still pending.
 - There is no comparison between roadmap and real repository state.
 - There is no automatic task generation from roadmap items.
-- There is no managed artifact inventory for safe refresh/update behavior.
+- A managed artifact inventory now exists in `ai-platform.json`, but it is not yet used by a safe refresh/update workflow.
 - There is no remote template versioning or upgrade policy.

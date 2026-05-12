@@ -139,7 +139,7 @@ High-level flow:
 3. Tasks are created in `ai/tasks/pending`
 4. The worker or a human processes the first pending task
 5. Validation is run using commands that make sense for the repository
-6. The task is moved to `ai/tasks/done`
+6. The task moves through `in-progress`, then `review` when appropriate, and reaches `done` only after validation supports completion
 7. When no pending tasks remain, a review loop can generate follow-up tasks
 
 Simplified pipeline:
@@ -150,6 +150,7 @@ Request
   -> Task files
   -> Worker execution
   -> Validation
+  -> Review
   -> Commit/Push
   -> Review loop
 ```
@@ -248,6 +249,8 @@ Important note:
 `ai-platform implement` v1 selects a pending task, validates basic metadata, can move it to `ai/tasks/in-progress`, and writes `ai/reports/implementation-prompt.md` for Codex. It does not execute Codex, implement code automatically, move tasks to `done`, commit, or push. The Codex execution step still must implement the task, validate it, commit, and push.
 
 `ai-platform status` is a quick operational view. It reports config loading, refresh source, managed artifacts, task paths, and a few local essentials. It is intentionally lighter than `doctor`, which remains the fuller readiness check.
+
+Generated reports under `ai/reports/` are local outputs. Keep `ai/reports/.gitkeep`, but do not commit generated files such as `project-analysis.md`, `roadmap-status.md`, `task-reconciliation.md`, `task-review.md`, or `implementation-prompt.md`.
 
 Examples:
 
@@ -382,6 +385,8 @@ The root file `ai-platform.json` is a small, explicit configuration file for sta
 Today it covers only a few things that are already useful:
 
 - `platformVersion`: lightweight template/config version marker
+- `templateSourceZip`: explicit default template ZIP source for install or future refresh-like flows
+- `managedArtifacts`: explicit list of platform-owned files and directories
 - `requiredTemplatePaths`: minimum paths a compatible template source must contain
 - `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
 - extended `taskPaths`: review, blocked, and obsolete directories for safer future workflows
@@ -395,7 +400,7 @@ What it does not cover yet:
 - validation command definitions
 - workflow policy beyond a few stable path conventions
 
-The current CLI already reads this file for minimal compatibility checks and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
+The current CLI already reads this file for minimal compatibility checks, status, and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
 
 ---
 

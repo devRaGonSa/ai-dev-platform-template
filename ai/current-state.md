@@ -24,12 +24,14 @@ It does not implement `refresh`.
 `ai-platform.json` currently defines:
 
 - `platformVersion`
+- `templateSourceZip`
+- `managedArtifacts`
 - `requiredTemplatePaths`
 - task lifecycle paths for pending, in-progress, review, blocked, obsolete, and done tasks
 - worker lock file path
 - worker polling interval
 
-The CLI uses it for compatibility checks and doctor output. Current CLI behavior still actively uses pending, in-progress, and done paths; review, blocked, and obsolete are structural lifecycle paths for future review/implement automation.
+The CLI uses it for compatibility checks, status output, and doctor output. Current CLI behavior still actively uses pending, in-progress, and done paths; review, blocked, and obsolete are structural lifecycle paths for future review/implement automation.
 
 ## Current worker
 

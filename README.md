@@ -56,7 +56,7 @@ Task lifecycle:
 - `ai/tasks/blocked`: cannot move forward because of an external dependency or decision
 - `ai/tasks/obsolete`: should not be executed because it is no longer valid
 
-`ai-platform reconcile` may propose candidates for review, blocked, or obsolete states, but it does not move tasks automatically. `ai-platform review` is still a future command. Tasks should not be moved to `done` without validation.
+`ai-platform reconcile` may propose candidates for review, blocked, or obsolete states, but it does not move tasks automatically. Tasks should not be moved to `done` without validation.
 
 ---
 
@@ -226,6 +226,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
 | `ai-platform review` | Reviews one task and writes a read-only report at `ai/reports/task-review.md` | Implemented |
+| `ai-platform implement` | Prepares one pending task for implementation and writes `ai/reports/implementation-prompt.md` | v1 implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -243,11 +244,17 @@ Important note:
 
 `ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
 
+`ai-platform implement` v1 selects a pending task, validates basic metadata, can move it to `ai/tasks/in-progress`, and writes `ai/reports/implementation-prompt.md` for Codex. It does not execute Codex, implement code automatically, move tasks to `done`, commit, or push. The Codex execution step still must implement the task, validate it, commit, and push.
+
 Examples:
 
 ```bash
 ai-platform plan --roadmap R-005 --title "Implement roadmap-driven plan command"
 ai-platform plan --title "Add team routing metadata to tasks" --dry-run
+ai-platform implement
+ai-platform implement --task TASK-0001
+ai-platform implement --dry-run
+ai-platform implement --task TASK-0001 --no-move
 ```
 
 By default, `ai-platform init` downloads this template from the repository's current GitHub ZIP URL. You can also pass a ZIP URL explicitly or set `AI_PLATFORM_TEMPLATE_ZIP` to point at another compatible source.
@@ -475,6 +482,7 @@ ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile
 ai-platform review --task TASK-0001
+ai-platform implement --task TASK-0001
 ai-platform doctor
 ai-platform run
 ai-platform plan

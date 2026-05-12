@@ -11,11 +11,12 @@ The .NET CLI currently implements:
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
 - `ai-platform review`: writes a read-only review report for one task to `ai/reports/task-review.md`.
+- `ai-platform implement`: v1 prepares one pending task for execution, can move it to in-progress, and writes `ai/reports/implementation-prompt.md`.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`, `status`, or `implement`.
+It does not implement `refresh` or `status`.
 
 ## Existing configuration
 
@@ -42,7 +43,7 @@ The CLI uses it for compatibility checks and doctor output. Current CLI behavior
 - runs `scripts/run-integration-tests.ps1` when present
 - commits and pushes when changes are present
 
-This is the current execution flow until a future `implement` command exists.
+This remains the current automatic execution flow. `ai-platform implement` v1 prepares a task and prompt for Codex, but it does not replace the worker yet.
 
 ## Current refresh behavior
 
@@ -79,7 +80,7 @@ The repository defines an extended task lifecycle:
 - `ai/tasks/blocked`
 - `ai/tasks/obsolete`
 
-There is not yet complete automation for moving tasks between these states. `ai-platform reconcile` remains read-only, and future `review` and `implement` commands are expected to use this lifecycle safely.
+There is not yet complete automation for moving tasks between these states. `ai-platform reconcile` and `ai-platform review` remain read-only. `ai-platform implement` v1 only moves a selected pending task to in-progress.
 
 ## Current team model
 
@@ -91,7 +92,7 @@ This model is for planning, ownership, and review guidance. There is no automati
 
 `ai/commands/` defines documentation contracts for future roadmap-driven commands: `analyze`, `roadmap-status`, roadmap-driven `plan`, `reconcile`, `implement`, and `review`.
 
-These specs do not imply CLI implementation by themselves. `analyze` and `roadmap-status` now have first read-only CLI implementations; the other roadmap-driven command specs remain contracts for future tasks.
+These specs do not imply CLI implementation by themselves. `analyze`, `roadmap-status`, `reconcile`, `review`, and `implement` now have first CLI implementations with documented limits; the remaining spec details remain contracts for future tasks.
 
 ## Current analyze behavior
 
@@ -123,6 +124,12 @@ It detects task counts, roadmap references, roadmap items with no task reference
 
 It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`, or `unknown`. It does not move tasks, modify the reviewed task, modify roadmap/current-state/known-gaps, execute Codex, call other commands, commit, push, download templates, or perform network operations.
 
+## Current implement behavior
+
+`ai-platform implement` accepts optional `--task`, `--dry-run`, and `--no-move`. It selects the first pending task by name when no task is provided, validates basic task metadata, and writes `ai/reports/implementation-prompt.md`.
+
+Without `--dry-run` or `--no-move`, it moves the selected task from `ai/tasks/pending` to `ai/tasks/in-progress` without overwriting an existing destination file. It does not execute Codex, modify application code, move tasks to review/done/blocked/obsolete, call other commands, commit, push, download templates, or perform network operations.
+
 ## Known limitations
 
 - The worker is PowerShell-first.
@@ -140,7 +147,7 @@ It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`,
 - deeper roadmap-driven analysis beyond the first read-only reports
 - advanced planning from roadmap items, including multi-task plans and automatic team splitting
 - deeper reconciliation that proposes smarter actions or integrates with review/implement
-- a dedicated `implement` command
+- deeper `implement` automation that executes Codex, validates implementation evidence, and integrates with review
 - safe automated state transitions based on review outcomes
 - multi-agent orchestration
 - template versioning or remote upgrade management

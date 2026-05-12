@@ -12,5 +12,5 @@ These specs connect roadmap phases, team ownership, and task workflow. Future CL
 | `ai-platform roadmap-status` | Implemented | Product | Compare roadmap with documented status | Writes report only | `ai/reports/roadmap-status.md` |
 | `ai-platform plan` | First implementation | Product | Generate one roadmap-driven pending task | Yes, creates pending task | Task file and console summary |
 | `ai-platform reconcile` | First read-only implementation | Orchestration | Detect drift between roadmap, tasks, reports, and repo evidence | Writes report only | `ai/reports/task-reconciliation.md` |
-| `ai-platform implement` | Spec only | Platform | Safely implement a selected task | Yes | Changed files, validation, commit/push when allowed |
+| `ai-platform implement` | First conservative implementation | Platform | Prepare one pending task for implementation | Yes, moves pending to in-progress and writes prompt | `ai/reports/implementation-prompt.md` |
 | `ai-platform review` | First read-only implementation | QA | Review one task before done | Writes report only | `ai/reports/task-review.md` |

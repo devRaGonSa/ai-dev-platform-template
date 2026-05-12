@@ -41,6 +41,10 @@ switch (command)
         RunReview(commandArgs);
         break;
 
+    case "implement":
+        RunImplement(commandArgs);
+        break;
+
     default:
         ShowHelp();
         break;
@@ -509,6 +513,97 @@ static void RunReview(string[] commandArgs)
     Console.WriteLine("Next step: review ai/reports/task-review.md");
 }
 
+static void RunImplement(string[] commandArgs)
+{
+    var options = ParseImplementOptions(commandArgs);
+    if (options.ShowHelp)
+        return;
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var config = LoadPlatformConfig(rootPath).Config;
+    var selectedTask = ResolveImplementTask(config, options);
+
+    if (selectedTask is null)
+    {
+        if (!string.IsNullOrWhiteSpace(options.TaskId) && IsTaskInProgress(config, options.TaskId))
+        {
+            Console.WriteLine("AI Platform Implement");
+            Console.WriteLine("");
+            Console.WriteLine($"Task {NormalizeTaskId(options.TaskId)} is already in progress.");
+            Console.WriteLine("implement v1 only starts tasks from pending.");
+            return;
+        }
+
+        Console.WriteLine("AI Platform Implement");
+        Console.WriteLine("");
+        Console.WriteLine(string.IsNullOrWhiteSpace(options.TaskId)
+            ? "No pending tasks found."
+            : $"Pending task not found: {NormalizeTaskId(options.TaskId)}");
+        Console.WriteLine("");
+        Console.WriteLine("Next step: create a pending task with ai-platform plan or choose a task from ai/tasks/pending.");
+        return;
+    }
+
+    var taskText = File.ReadAllText(selectedTask.PendingPath);
+    var taskInfo = AnalyzeTaskForImplementation(selectedTask.PendingPath, taskText);
+    var warnings = BuildImplementationWarnings(taskInfo);
+    var promptPath = Path.Combine(rootPath, "ai", "reports", "implementation-prompt.md");
+    var destinationPath = Path.Combine(config.TaskPaths.InProgress!, Path.GetFileName(selectedTask.PendingPath));
+    var destinationDisplayPath = NormalizeDisplayPath(destinationPath);
+
+    if (options.DryRun)
+    {
+        Console.WriteLine("AI Platform Implement dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Would select task: {taskInfo.TaskId}");
+        Console.WriteLine($"Would move from: {selectedTask.DisplayPath}");
+        Console.WriteLine($"Would move to: {destinationDisplayPath}");
+        Console.WriteLine("Would write prompt to: ai/reports/implementation-prompt.md");
+        Console.WriteLine("");
+        Console.WriteLine("Warnings:");
+        PrintWarnings(warnings);
+        Console.WriteLine("");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
+    var promptTaskPath = options.NoMove ? selectedTask.DisplayPath : destinationDisplayPath;
+
+    if (!options.NoMove)
+    {
+        Directory.CreateDirectory(config.TaskPaths.InProgress!);
+        if (File.Exists(destinationPath))
+        {
+            Console.WriteLine("AI Platform Implement");
+            Console.WriteLine("");
+            Console.WriteLine($"Cannot move task because destination already exists: {destinationDisplayPath}");
+            Console.WriteLine("No files were changed.");
+            return;
+        }
+
+        File.Move(selectedTask.PendingPath, destinationPath);
+    }
+
+    Directory.CreateDirectory(Path.GetDirectoryName(promptPath)!);
+    File.WriteAllText(promptPath, BuildImplementationPrompt(taskInfo, promptTaskPath, taskText));
+
+    Console.WriteLine("AI Platform Implement");
+    Console.WriteLine("");
+    Console.WriteLine($"Selected task: {taskInfo.TaskId}");
+    if (options.NoMove)
+        Console.WriteLine("Task was not moved because --no-move was used.");
+    else
+        Console.WriteLine($"Moved task to: {destinationDisplayPath}");
+    Console.WriteLine("Implementation prompt written to: ai/reports/implementation-prompt.md");
+    Console.WriteLine("");
+    Console.WriteLine("Warnings:");
+    PrintWarnings(warnings);
+    Console.WriteLine("");
+    Console.WriteLine(options.NoMove
+        ? "Next step: review the generated prompt."
+        : "Next step: open ai/reports/implementation-prompt.md and run it with Codex.");
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -582,6 +677,204 @@ static void ShowReviewHelp()
     Console.WriteLine("  ai-platform review --file ai/tasks/review/TASK-0001.md [--strict]");
     Console.WriteLine("");
     Console.WriteLine("If both --task and --file are provided, --file is used.");
+}
+
+static ImplementOptions ParseImplementOptions(string[] args)
+{
+    var options = new ImplementOptions();
+
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        switch (arg)
+        {
+            case "--task":
+                options.TaskId = NormalizeTaskId(ReadOptionValue(args, ref index, arg));
+                break;
+            case "--dry-run":
+                options.DryRun = true;
+                break;
+            case "--no-move":
+                options.NoMove = true;
+                break;
+            case "-h":
+            case "--help":
+                options.ShowHelp = true;
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown implement argument: {arg}");
+                break;
+        }
+    }
+
+    if (options.ShowHelp)
+        ShowImplementHelp();
+
+    return options;
+}
+
+static void ShowImplementHelp()
+{
+    Console.WriteLine("AI Platform Implement");
+    Console.WriteLine("");
+    Console.WriteLine("Prepares one pending task for implementation.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform implement [--task TASK-0001] [--dry-run] [--no-move]");
+    Console.WriteLine("");
+    Console.WriteLine("v1 moves pending tasks to in-progress and writes ai/reports/implementation-prompt.md.");
+    Console.WriteLine("It does not execute Codex, implement code, or move tasks to done.");
+}
+
+static PendingTaskSelection? ResolveImplementTask(PlatformConfig config, ImplementOptions options)
+{
+    var pendingPath = config.TaskPaths.Pending!;
+    if (!Directory.Exists(pendingPath))
+        return null;
+
+    string? taskPath;
+    if (string.IsNullOrWhiteSpace(options.TaskId))
+    {
+        taskPath = Directory.GetFiles(pendingPath, "*.md", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+    else
+    {
+        var taskId = NormalizeTaskId(options.TaskId);
+        var directPath = Path.Combine(pendingPath, $"{taskId}.md");
+        taskPath = File.Exists(directPath)
+            ? directPath
+            : Directory.GetFiles(pendingPath, $"{taskId}*.md", SearchOption.TopDirectoryOnly)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+    }
+
+    return taskPath is null
+        ? null
+        : new PendingTaskSelection(taskPath, NormalizeDisplayPath(taskPath));
+}
+
+static bool IsTaskInProgress(PlatformConfig config, string taskId)
+{
+    var inProgressPath = config.TaskPaths.InProgress!;
+    if (!Directory.Exists(inProgressPath))
+        return false;
+
+    var normalizedTaskId = NormalizeTaskId(taskId);
+    return File.Exists(Path.Combine(inProgressPath, $"{normalizedTaskId}.md"))
+        || Directory.GetFiles(inProgressPath, $"{normalizedTaskId}*.md", SearchOption.TopDirectoryOnly).Any();
+}
+
+static ImplementationTaskInfo AnalyzeTaskForImplementation(string path, string text)
+{
+    var taskId = DetectTaskId(text, path) ?? Path.GetFileNameWithoutExtension(path).ToUpperInvariant();
+    var roadmapReferences = Regex.Matches(text, @"\bR-\d{3}\b", RegexOptions.IgnoreCase)
+        .Select(match => match.Value.ToUpperInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(value => value)
+        .ToList();
+    var roadmapItem = ReadMetadataValue(text, "roadmap_item")
+        ?? roadmapReferences.FirstOrDefault();
+
+    return new ImplementationTaskInfo(
+        taskId,
+        ExtractTaskTitle(text, path),
+        ReadMetadataValue(text, "team"),
+        roadmapItem,
+        HasTaskId(text, path),
+        !string.IsNullOrWhiteSpace(ExtractTaskTitle(text, path)),
+        HasTaskMetadata(text, "team"),
+        !string.IsNullOrWhiteSpace(roadmapItem) || HasJustificationSignal(text),
+        HasAcceptanceCriteria(text),
+        HasHeading(text, "Validation"),
+        HasHeading(text, "Commit and push"));
+}
+
+static bool HasTaskId(string text, string path)
+{
+    return DetectTaskId(text, path) is not null;
+}
+
+static bool HasJustificationSignal(string text)
+{
+    return Regex.IsMatch(text, @"\b(justification|justificacion|justificación|explicit planning request)\b", RegexOptions.IgnoreCase);
+}
+
+static List<string> BuildImplementationWarnings(ImplementationTaskInfo task)
+{
+    var warnings = new List<string>();
+
+    if (!task.HasTaskId)
+        warnings.Add("task id is missing.");
+    if (!task.HasTitle)
+        warnings.Add("title is missing.");
+    if (!task.HasTeam)
+        warnings.Add("team is missing.");
+    if (!task.HasRoadmapItemOrJustification)
+        warnings.Add("roadmap item or justification is missing.");
+    if (!task.HasAcceptanceCriteria)
+        warnings.Add("acceptance criteria are missing.");
+    if (!task.HasValidation)
+        warnings.Add("validation section is missing.");
+    if (!task.HasCommitAndPush)
+        warnings.Add("commit and push section is missing.");
+
+    return warnings;
+}
+
+static void PrintWarnings(IReadOnlyList<string> warnings)
+{
+    if (warnings.Count == 0)
+    {
+        Console.WriteLine("- none");
+        return;
+    }
+
+    foreach (var warning in warnings)
+        Console.WriteLine($"- {warning}");
+}
+
+static string BuildImplementationPrompt(ImplementationTaskInfo task, string taskPath, string taskText)
+{
+    var builder = new StringBuilder();
+
+    builder.AppendLine("# Implementation Prompt");
+    builder.AppendLine();
+    builder.AppendLine("## Task");
+    builder.AppendLine($"- ID: {task.TaskId}");
+    builder.AppendLine($"- File: {taskPath}");
+    builder.AppendLine($"- Team: {FormatOptionalValue(task.Team)}");
+    builder.AppendLine($"- Roadmap item: {FormatOptionalValue(task.RoadmapItem)}");
+    builder.AppendLine();
+    builder.AppendLine("## Instructions for Codex");
+    builder.AppendLine();
+    builder.AppendLine("You are implementing this task from the AI platform workflow.");
+    builder.AppendLine();
+    builder.AppendLine("Follow these rules:");
+    builder.AppendLine("1. Read AGENTS.md first.");
+    builder.AppendLine("2. Read the task file completely.");
+    builder.AppendLine("3. Read all files listed in \"Files to read first\".");
+    builder.AppendLine("4. Implement the smallest safe increment.");
+    builder.AppendLine("5. Do not change unrelated files.");
+    builder.AppendLine("6. Update documentation when behavior changes.");
+    builder.AppendLine("7. Run validation commands.");
+    builder.AppendLine("8. Do not commit build artifacts.");
+    builder.AppendLine("9. When implementation is complete, move the task to review if appropriate, not directly to done unless repository policy explicitly allows it.");
+    builder.AppendLine("10. Commit with a clear message.");
+    builder.AppendLine("11. Push the branch to the remote.");
+    builder.AppendLine();
+    builder.AppendLine("## Task content");
+    builder.AppendLine();
+    builder.AppendLine(taskText.TrimEnd());
+    builder.AppendLine();
+
+    return builder.ToString();
+}
+
+static string NormalizeTaskId(string value)
+{
+    return Path.GetFileNameWithoutExtension(value.Trim()).ToUpperInvariant();
 }
 
 static string? ResolveReviewTaskPath(ReviewOptions options)
@@ -1711,6 +2004,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
     Console.WriteLine("  ai-platform review           Generate read-only task review report");
+    Console.WriteLine("  ai-platform implement        Prepare a pending task for implementation");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -1889,6 +2183,29 @@ sealed record TaskReviewResult(
     IReadOnlyList<string> Issues,
     string RecommendedOutcome,
     IReadOnlyList<string> Recommendations);
+
+sealed record PendingTaskSelection(string PendingPath, string DisplayPath);
+
+sealed record ImplementationTaskInfo(
+    string TaskId,
+    string Title,
+    string? Team,
+    string? RoadmapItem,
+    bool HasTaskId,
+    bool HasTitle,
+    bool HasTeam,
+    bool HasRoadmapItemOrJustification,
+    bool HasAcceptanceCriteria,
+    bool HasValidation,
+    bool HasCommitAndPush);
+
+sealed class ImplementOptions
+{
+    public string? TaskId { get; set; }
+    public bool DryRun { get; set; }
+    public bool NoMove { get; set; }
+    public bool ShowHelp { get; set; }
+}
 
 sealed class ReviewOptions
 {

@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -224,6 +224,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 |---|---|---|
 | `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
 | `ai-platform status` | Shows a quick operational platform summary from config and local essentials | Implemented |
+| `ai-platform refresh` | Refreshes managed platform artifacts from a compatible template ZIP; dry-run by default | v1 implemented |
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
@@ -242,6 +243,8 @@ Important note:
 
 `ai-platform plan` creates one Markdown task in `ai/tasks/pending`. It requires `--title`, can associate the task with `--roadmap`, accepts optional `--team`, `--priority`, and `--type`, and supports `--dry-run`. It creates the task only; it does not implement it, move tasks, run Codex, commit, or push.
 
+`ai-platform refresh` v1 refreshes only the managed artifacts declared in `ai-platform.json`. It is a dry-run by default, requires `--apply` to write changes, supports `--source` to override the ZIP source, and resolves the source in this order: `--source`, `AI_PLATFORM_TEMPLATE_ZIP`, `templateSourceZip` from `ai-platform.json`, then the built-in default. It never deletes files, never touches tasks, and never creates commits or pushes.
+
 `ai-platform reconcile` is read-only except for creating or updating `ai/reports/task-reconciliation.md`. It detects task/roadmap reference issues and stale or weak pending task candidates. It does not move tasks, mark anything done, or replace future review behavior.
 
 `ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
@@ -257,6 +260,9 @@ Examples:
 ```bash
 ai-platform plan --roadmap R-005 --title "Implement roadmap-driven plan command"
 ai-platform plan --title "Add team routing metadata to tasks" --dry-run
+ai-platform refresh
+ai-platform refresh --apply
+ai-platform refresh --source https://example.com/template.zip
 ai-platform implement
 ai-platform implement --task TASK-0001
 ai-platform implement --dry-run
@@ -400,7 +406,7 @@ What it does not cover yet:
 - validation command definitions
 - workflow policy beyond a few stable path conventions
 
-The current CLI already reads this file for minimal compatibility checks, status, and doctor output, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
+The current CLI already reads this file for minimal compatibility checks, status, doctor output, and conservative refresh behavior, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
 
 ---
 
@@ -487,6 +493,7 @@ Future command implementations should follow these specs and update them when be
 ```bash
 ai-platform init
 ai-platform status
+ai-platform refresh
 ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -15,6 +17,10 @@ switch (command)
 
     case "status":
         RunStatus();
+        break;
+
+    case "refresh":
+        RunRefresh(commandArgs);
         break;
 
     case "run":
@@ -253,6 +259,94 @@ static void RunStatus()
     PrintStatusCheck(".git", Directory.Exists(".git"));
     Console.WriteLine("");
     Console.WriteLine("Next step: run `ai-platform doctor` for full validation, or `ai-platform analyze` for a project report.");
+}
+
+static void RunRefresh(string[] commandArgs)
+{
+    var options = ParseRefreshOptions(commandArgs);
+    if (options.ShowHelp)
+        return;
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var configResult = LoadPlatformConfig(rootPath);
+    var config = configResult.Config;
+
+    if (configResult.FallbackKeys.Contains("managedArtifacts", StringComparer.OrdinalIgnoreCase)
+        || config.ManagedArtifacts.Count == 0)
+    {
+        Console.WriteLine("AI Platform Refresh");
+        Console.WriteLine("");
+        Console.WriteLine("Managed artifacts are not configured.");
+        Console.WriteLine("Add `managedArtifacts` to ai-platform.json before running refresh.");
+        return;
+    }
+
+    var refreshSource = ResolveRefreshSource(options, configResult);
+    var modeLabel = options.Apply ? "apply" : "dry-run";
+    var tempRoot = Path.Combine(Path.GetTempPath(), $"ai-platform-refresh-{Guid.NewGuid():N}");
+    var tempZipPath = Path.Combine(tempRoot, "template.zip");
+    var extractPath = Path.Combine(tempRoot, "extracted");
+
+    try
+    {
+        Directory.CreateDirectory(tempRoot);
+        DownloadTemplateZip(refreshSource.Source, tempZipPath);
+        try
+        {
+            ZipFile.ExtractToDirectory(tempZipPath, extractPath);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new RefreshCommandException($"The downloaded ZIP is invalid or corrupt: {ex.Message}");
+        }
+
+        var sourceRoot = ResolveExtractedSourceDirectory(extractPath);
+        ValidateTemplateStructure(sourceRoot, refreshSource.Source, config.RequiredTemplatePaths);
+
+        var comparison = CompareManagedArtifacts(rootPath, sourceRoot, config.ManagedArtifacts);
+
+        if (options.Apply)
+            ApplyRefreshChanges(rootPath, sourceRoot, comparison);
+
+        PrintRefreshSummary(config, refreshSource, comparison, options.Apply);
+    }
+    catch (RefreshCommandException ex)
+    {
+        Console.WriteLine(options.Apply ? "AI Platform Refresh" : "AI Platform Refresh dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Source: {refreshSource.Source}");
+        Console.WriteLine($"Source selection: {refreshSource.Selection}");
+        Console.WriteLine($"Mode: {modeLabel}");
+        Console.WriteLine("");
+        Console.WriteLine(ex.Message);
+    }
+    catch (DirectoryNotFoundException ex)
+    {
+        Console.WriteLine(options.Apply ? "AI Platform Refresh" : "AI Platform Refresh dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Source: {refreshSource.Source}");
+        Console.WriteLine($"Source selection: {refreshSource.Selection}");
+        Console.WriteLine($"Mode: {modeLabel}");
+        Console.WriteLine("");
+        Console.WriteLine($"Could not resolve the extracted template root: {ex.Message}");
+    }
+    catch (InvalidDataException ex)
+    {
+        Console.WriteLine(options.Apply ? "AI Platform Refresh" : "AI Platform Refresh dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Source: {refreshSource.Source}");
+        Console.WriteLine($"Source selection: {refreshSource.Selection}");
+        Console.WriteLine($"Mode: {modeLabel}");
+        Console.WriteLine("");
+        Console.WriteLine("Source not compatible.");
+        Console.WriteLine(ex.Message);
+        Console.WriteLine("Review --source, AI_PLATFORM_TEMPLATE_ZIP, or templateSourceZip.");
+    }
+    finally
+    {
+        if (Directory.Exists(tempRoot))
+            Directory.Delete(tempRoot, true);
+    }
 }
 
 static void RunAnalyze()
@@ -711,6 +805,293 @@ static void ShowReviewHelp()
     Console.WriteLine("  ai-platform review --file ai/tasks/review/TASK-0001.md [--strict]");
     Console.WriteLine("");
     Console.WriteLine("If both --task and --file are provided, --file is used.");
+}
+
+static RefreshOptions ParseRefreshOptions(string[] args)
+{
+    var options = new RefreshOptions();
+
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        switch (arg)
+        {
+            case "--apply":
+                options.Apply = true;
+                break;
+            case "--source":
+                options.Source = ReadOptionValue(args, ref index, arg);
+                break;
+            case "-h":
+            case "--help":
+                options.ShowHelp = true;
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown refresh argument: {arg}");
+                break;
+        }
+    }
+
+    if (options.ShowHelp)
+        ShowRefreshHelp();
+
+    return options;
+}
+
+static void ShowRefreshHelp()
+{
+    Console.WriteLine("AI Platform Refresh");
+    Console.WriteLine("");
+    Console.WriteLine("Refreshes managed platform artifacts from a compatible template ZIP source.");
+    Console.WriteLine("Dry-run is the default. Use --apply to write changes.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform refresh [--source <zip-url>] [--apply]");
+    Console.WriteLine("");
+    Console.WriteLine("Source precedence:");
+    Console.WriteLine("  1. --source");
+    Console.WriteLine("  2. AI_PLATFORM_TEMPLATE_ZIP");
+    Console.WriteLine("  3. templateSourceZip in ai-platform.json");
+    Console.WriteLine("  4. built-in default");
+}
+
+static RefreshSourceInfo ResolveRefreshSource(RefreshOptions options, PlatformConfigLoadResult configResult)
+{
+    if (!string.IsNullOrWhiteSpace(options.Source))
+        return new RefreshSourceInfo(options.Source.Trim(), "command argument");
+
+    var envSource = Environment.GetEnvironmentVariable("AI_PLATFORM_TEMPLATE_ZIP");
+    if (!string.IsNullOrWhiteSpace(envSource))
+        return new RefreshSourceInfo(envSource, "AI_PLATFORM_TEMPLATE_ZIP");
+
+    if (!configResult.FallbackKeys.Contains("templateSourceZip", StringComparer.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(configResult.Config.TemplateSourceZip))
+        return new RefreshSourceInfo(configResult.Config.TemplateSourceZip, "ai-platform.json");
+
+    return new RefreshSourceInfo(GetBuiltInTemplateZipSource(), "built-in default");
+}
+
+static void DownloadTemplateZip(string source, string targetPath)
+{
+    if (!Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+        || (sourceUri.Scheme != Uri.UriSchemeHttps && sourceUri.Scheme != Uri.UriSchemeHttp))
+        throw new RefreshCommandException("Invalid source URL. Provide a valid HTTP or HTTPS ZIP URL.");
+
+    try
+    {
+        using var client = new HttpClient();
+        using var response = client.GetAsync(sourceUri).Result;
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            throw new RefreshCommandException($"Source request failed with {(int)response.StatusCode} {response.StatusCode}. Check repository access or credentials.");
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            throw new RefreshCommandException("Source request failed with 404 Not Found. Check --source, AI_PLATFORM_TEMPLATE_ZIP, or templateSourceZip.");
+
+        if (!response.IsSuccessStatusCode)
+            throw new RefreshCommandException($"Source request failed with {(int)response.StatusCode} {response.StatusCode}.");
+
+        var bytes = response.Content.ReadAsByteArrayAsync().Result;
+        File.WriteAllBytes(targetPath, bytes);
+    }
+    catch (AggregateException ex) when (ex.InnerException is HttpRequestException httpEx)
+    {
+        throw CreateRefreshHttpException(httpEx);
+    }
+    catch (HttpRequestException ex)
+    {
+        throw CreateRefreshHttpException(ex);
+    }
+    catch (IOException ex)
+    {
+        throw new RefreshCommandException($"Could not store the downloaded ZIP: {ex.Message}");
+    }
+    catch (InvalidOperationException ex)
+    {
+        throw new RefreshCommandException($"Could not use the configured source URL: {ex.Message}");
+    }
+}
+
+static RefreshCommandException CreateRefreshHttpException(HttpRequestException ex)
+{
+    if (ex.StatusCode == HttpStatusCode.Unauthorized || ex.StatusCode == HttpStatusCode.Forbidden)
+        return new RefreshCommandException($"Source request failed with {(int)ex.StatusCode} {ex.StatusCode}. Check repository access or credentials.");
+
+    if (ex.StatusCode == HttpStatusCode.NotFound)
+        return new RefreshCommandException("Source request failed with 404 Not Found. Check --source, AI_PLATFORM_TEMPLATE_ZIP, or templateSourceZip.");
+
+    if (ex.StatusCode is not null)
+        return new RefreshCommandException($"Source request failed with {(int)ex.StatusCode} {ex.StatusCode}.");
+
+    return new RefreshCommandException($"Network error while downloading the source ZIP: {ex.Message}");
+}
+
+static RefreshComparisonResult CompareManagedArtifacts(string rootPath, string sourceRoot, IReadOnlyList<string> managedArtifacts)
+{
+    var created = new List<string>();
+    var updated = new List<string>();
+    var unchanged = new List<string>();
+    var missingInSource = new List<string>();
+
+    foreach (var artifact in managedArtifacts)
+    {
+        var sourcePath = Path.Combine(sourceRoot, artifact.Replace('/', Path.DirectorySeparatorChar));
+        var localPath = Path.Combine(rootPath, artifact.Replace('/', Path.DirectorySeparatorChar));
+        var displayArtifact = NormalizeDisplayPath(artifact);
+
+        var sourceIsFile = File.Exists(sourcePath);
+        var sourceIsDirectory = Directory.Exists(sourcePath);
+
+        if (!sourceIsFile && !sourceIsDirectory)
+        {
+            missingInSource.Add(displayArtifact);
+            continue;
+        }
+
+        if (sourceIsFile)
+        {
+            if (!File.Exists(localPath))
+            {
+                created.Add(displayArtifact);
+                continue;
+            }
+
+            if (FilesEqual(sourcePath, localPath))
+                unchanged.Add(displayArtifact);
+            else
+                updated.Add(displayArtifact);
+
+            continue;
+        }
+
+        if (!Directory.Exists(localPath))
+        {
+            created.Add(displayArtifact);
+            continue;
+        }
+
+        var sourceFiles = Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories)
+            .Select(path => NormalizeDisplayPath(Path.GetRelativePath(sourcePath, path)))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (sourceFiles.Count == 0)
+        {
+            unchanged.Add(displayArtifact);
+            continue;
+        }
+
+        var hasChanges = false;
+        foreach (var relativePath in sourceFiles)
+        {
+            var sourceFilePath = Path.Combine(sourcePath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            var localFilePath = Path.Combine(localPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(localFilePath) || !FilesEqual(sourceFilePath, localFilePath))
+            {
+                hasChanges = true;
+                break;
+            }
+        }
+
+        if (hasChanges)
+            updated.Add(displayArtifact);
+        else
+            unchanged.Add(displayArtifact);
+    }
+
+    return new RefreshComparisonResult(created, updated, unchanged, missingInSource);
+}
+
+static bool FilesEqual(string leftPath, string rightPath)
+{
+    var leftInfo = new FileInfo(leftPath);
+    var rightInfo = new FileInfo(rightPath);
+    if (!leftInfo.Exists || !rightInfo.Exists)
+        return false;
+
+    if (leftInfo.Length != rightInfo.Length)
+        return false;
+
+    return string.Equals(GetFileHash(leftPath), GetFileHash(rightPath), StringComparison.OrdinalIgnoreCase);
+}
+
+static string GetFileHash(string path)
+{
+    using var stream = File.OpenRead(path);
+    using var sha = SHA256.Create();
+    return Convert.ToHexString(sha.ComputeHash(stream));
+}
+
+static void ApplyRefreshChanges(string rootPath, string sourceRoot, RefreshComparisonResult comparison)
+{
+    foreach (var artifact in comparison.Created.Concat(comparison.Updated).Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var sourcePath = Path.Combine(sourceRoot, artifact.Replace('/', Path.DirectorySeparatorChar));
+        var localPath = Path.Combine(rootPath, artifact.Replace('/', Path.DirectorySeparatorChar));
+
+        if (File.Exists(sourcePath))
+        {
+            if (Directory.Exists(localPath))
+                throw new RefreshCommandException($"Cannot update managed artifact '{artifact}' because the source is a file and the local path is a directory.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(localPath)!);
+            File.Copy(sourcePath, localPath, true);
+            continue;
+        }
+
+        if (Directory.Exists(sourcePath))
+        {
+            if (File.Exists(localPath))
+                throw new RefreshCommandException($"Cannot update managed artifact '{artifact}' because the source is a directory and the local path is a file.");
+
+            CopyDirectoryContents(sourcePath, localPath);
+            continue;
+        }
+
+        throw new RefreshCommandException($"Managed artifact '{artifact}' was selected for apply, but it is missing in the source.");
+    }
+}
+
+static void CopyDirectoryContents(string sourceDir, string destDir)
+{
+    Directory.CreateDirectory(destDir);
+
+    foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+    {
+        var relativePath = Path.GetRelativePath(sourceDir, file);
+        var destinationPath = Path.Combine(destDir, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        File.Copy(file, destinationPath, true);
+    }
+}
+
+static void PrintRefreshSummary(PlatformConfig config, RefreshSourceInfo refreshSource, RefreshComparisonResult comparison, bool apply)
+{
+    Console.WriteLine(apply ? "AI Platform Refresh" : "AI Platform Refresh dry run");
+    Console.WriteLine("");
+    Console.WriteLine($"Source: {refreshSource.Source}");
+    Console.WriteLine($"Source selection: {refreshSource.Selection}");
+    Console.WriteLine($"Mode: {(apply ? "apply" : "dry-run")}");
+    Console.WriteLine("");
+    Console.WriteLine($"Validation: checked required template paths: {string.Join(", ", config.RequiredTemplatePaths)}");
+    Console.WriteLine("");
+    Console.WriteLine("Managed artifacts:");
+    Console.WriteLine($"- Create: {FormatSummaryItems(comparison.Created)}");
+    Console.WriteLine($"- Update: {FormatSummaryItems(comparison.Updated)}");
+    Console.WriteLine($"- Unchanged: {FormatSummaryItems(comparison.Unchanged)}");
+    Console.WriteLine($"- Missing in source: {FormatSummaryItems(comparison.MissingInSource)}");
+    Console.WriteLine("");
+
+    if (!apply)
+    {
+        Console.WriteLine("No files were changed.");
+        Console.WriteLine("");
+        Console.WriteLine("Next step: rerun with `ai-platform refresh --apply` to update managed artifacts.");
+        return;
+    }
+
+    Console.WriteLine("Scope: create/update managed artifacts only; never deletes artifacts.");
+    Console.WriteLine("Commits: not created by refresh v1.");
 }
 
 static ImplementOptions ParseImplementOptions(string[] args)
@@ -2070,6 +2451,7 @@ static void ShowHelp()
     Console.WriteLine("Commands:");
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
     Console.WriteLine("  ai-platform status           Show quick operational platform status");
+    Console.WriteLine("  ai-platform refresh          Refresh managed artifacts from a compatible template ZIP");
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
@@ -2290,6 +2672,12 @@ sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSourc
 
 sealed record RefreshSourceInfo(string Source, string Selection);
 
+sealed record RefreshComparisonResult(
+    IReadOnlyList<string> Created,
+    IReadOnlyList<string> Updated,
+    IReadOnlyList<string> Unchanged,
+    IReadOnlyList<string> MissingInSource);
+
 sealed record RoadmapItem(string Id, string Title, string Status);
 
 sealed record TaskFileInfo(
@@ -2360,10 +2748,25 @@ sealed class PlanOptions
     public bool DryRun { get; set; }
 }
 
+sealed class RefreshOptions
+{
+    public bool Apply { get; set; }
+    public string? Source { get; set; }
+    public bool ShowHelp { get; set; }
+}
+
 sealed class InstallSummary
 {
     public List<string> Created { get; } = new();
     public List<string> Skipped { get; } = new();
+}
+
+sealed class RefreshCommandException : Exception
+{
+    public RefreshCommandException(string message)
+        : base(message)
+    {
+    }
 }
 
 sealed class PlatformConfigLoadResult

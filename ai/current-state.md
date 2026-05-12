@@ -8,6 +8,7 @@ The .NET CLI currently implements:
 
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
 - `ai-platform status`: prints a quick operational summary from config and local essentials.
+- `ai-platform refresh`: v1 refreshes managed artifacts from a compatible template ZIP and defaults to dry-run.
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
@@ -17,7 +18,7 @@ The .NET CLI currently implements:
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh`.
+It does not implement `version`.
 
 ## Existing configuration
 
@@ -50,7 +51,9 @@ This remains the current automatic execution flow. `ai-platform implement` v1 pr
 
 ## Current refresh behavior
 
-There is no implemented `refresh` command. Future refresh behavior should be conservative, explicit about managed artifacts, and dry-run by default.
+`ai-platform refresh` v1 resolves a compatible ZIP source from `--source`, `AI_PLATFORM_TEMPLATE_ZIP`, `templateSourceZip`, or the built-in default. It validates `requiredTemplatePaths`, compares only `managedArtifacts`, and defaults to dry-run.
+
+With `--apply`, it creates or updates only managed artifacts that differ in the source. It never deletes local files, never touches tasks or reports, never executes Codex, and never creates commits or pushes.
 
 ## Current status and doctor behavior
 
@@ -153,6 +156,7 @@ Without `--dry-run` or `--no-move`, it moves the selected task from `ai/tasks/pe
 - advanced planning from roadmap items, including multi-task plans and automatic team splitting
 - deeper reconciliation that proposes smarter actions or integrates with review/implement
 - deeper `implement` automation that executes Codex, validates implementation evidence, and integrates with review
+- deeper `refresh` behavior with backups, rollback, merge intelligence, and richer local/remote comparison
 - safe automated state transitions based on review outcomes
 - multi-agent orchestration
 - template versioning or remote upgrade management

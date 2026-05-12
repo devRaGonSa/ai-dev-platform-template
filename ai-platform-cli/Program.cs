@@ -13,6 +13,10 @@ switch (command)
         InstallPlatform(commandArgs);
         break;
 
+    case "status":
+        RunStatus();
+        break;
+
     case "run":
         RunScript("scripts/codex-runner.ps1");
         break;
@@ -52,7 +56,7 @@ switch (command)
 
 static void InstallPlatform(string[] commandArgs)
 {
-    const string defaultRepoZip = "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip";
+    var defaultRepoZip = GetBuiltInTemplateZipSource();
     var (repoZip, sourceKind) = ResolveTemplateZipSource(commandArgs, defaultRepoZip);
     var tempZip = Path.Combine(Path.GetTempPath(), "ai-platform.zip");
     var extractPath = Path.Combine(Path.GetTempPath(), "ai-platform");
@@ -92,6 +96,11 @@ static (string Source, string SourceKind) ResolveTemplateZipSource(string[] comm
         return (envSource, "AI_PLATFORM_TEMPLATE_ZIP");
 
     return (defaultRepoZip, "built-in default");
+}
+
+static string GetBuiltInTemplateZipSource()
+{
+    return "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip";
 }
 
 static string ResolveExtractedSourceDirectory(string extractPath)
@@ -219,6 +228,31 @@ static void RunDoctor()
         Console.WriteLine("Platform ready.");
     else
         Console.WriteLine("Platform is not ready. Fix missing items and run `ai-platform doctor` again.");
+}
+
+static void RunStatus()
+{
+    var rootPath = Directory.GetCurrentDirectory();
+    var configResult = LoadPlatformConfig(rootPath);
+    var config = configResult.Config;
+    var refreshSource = ResolveStatusRefreshSource(config);
+
+    Console.WriteLine("AI Platform Status");
+    Console.WriteLine("");
+    Console.WriteLine($"- Config: {configResult.Status}");
+    Console.WriteLine($"- Platform version: {FormatOptionalValue(config.PlatformVersion)}");
+    Console.WriteLine($"- Worker lock file: {FormatOptionalValue(config.Worker.LockFile)}");
+    Console.WriteLine($"- Refresh source: {refreshSource.Source}");
+    Console.WriteLine($"- Refresh source selection: {refreshSource.Selection}");
+    Console.WriteLine($"- Managed artifacts: {FormatManagedArtifacts(config.ManagedArtifacts)}");
+    Console.WriteLine($"- Task paths: pending={config.TaskPaths.Pending}, in-progress={config.TaskPaths.InProgress}, review={config.TaskPaths.Review}, done={config.TaskPaths.Done}, blocked={config.TaskPaths.Blocked}, obsolete={config.TaskPaths.Obsolete}");
+    Console.WriteLine("- Local essentials:");
+    PrintStatusCheck("ai/", Directory.Exists("ai"));
+    PrintStatusCheck("scripts/", Directory.Exists("scripts"));
+    PrintStatusCheck("AGENTS.md", File.Exists("AGENTS.md"));
+    PrintStatusCheck(".git", Directory.Exists(".git"));
+    Console.WriteLine("");
+    Console.WriteLine("Next step: run `ai-platform doctor` for full validation, or `ai-platform analyze` for a project report.");
 }
 
 static void RunAnalyze()
@@ -1795,7 +1829,7 @@ static OptionalConfigValues ReadOptionalConfigValues(string rootPath)
         var root = document.RootElement;
         return new OptionalConfigValues(
             ReadJsonPropertySummary(root, "managedArtifacts"),
-            ReadJsonPropertySummary(root, "templateSource"));
+            ReadJsonPropertySummary(root, "templateSourceZip", "templateSource"));
     }
     catch
     {
@@ -1803,9 +1837,21 @@ static OptionalConfigValues ReadOptionalConfigValues(string rootPath)
     }
 }
 
-static string ReadJsonPropertySummary(JsonElement root, string propertyName)
+static string ReadJsonPropertySummary(JsonElement root, params string[] propertyNames)
 {
-    if (!root.TryGetProperty(propertyName, out var property))
+    JsonElement property = default;
+    var found = false;
+
+    foreach (var propertyName in propertyNames)
+    {
+        if (root.TryGetProperty(propertyName, out property))
+        {
+            found = true;
+            break;
+        }
+    }
+
+    if (!found)
         return "not configured";
 
     return property.ValueKind switch
@@ -1948,6 +1994,29 @@ static string FormatFound(bool exists)
     return exists ? "found" : "missing";
 }
 
+static RefreshSourceInfo ResolveStatusRefreshSource(PlatformConfig config)
+{
+    if (!string.IsNullOrWhiteSpace(config.TemplateSourceZip))
+        return new RefreshSourceInfo(config.TemplateSourceZip, "ai-platform.json");
+
+    var envSource = Environment.GetEnvironmentVariable("AI_PLATFORM_TEMPLATE_ZIP");
+    if (!string.IsNullOrWhiteSpace(envSource))
+        return new RefreshSourceInfo(envSource, "AI_PLATFORM_TEMPLATE_ZIP");
+
+    return new RefreshSourceInfo(GetBuiltInTemplateZipSource(), "built-in default");
+}
+
+static string FormatManagedArtifacts(IReadOnlyList<string> managedArtifacts)
+{
+    return managedArtifacts.Count == 0 ? "not configured" : string.Join(", ", managedArtifacts);
+}
+
+static void PrintStatusCheck(string label, bool exists)
+{
+    var status = exists ? "OK" : "MISSING";
+    Console.WriteLine($"  [{status}] {label}");
+}
+
 static string FormatList(IReadOnlyList<string> items)
 {
     return items.Count == 0 ? "none" : string.Join(", ", items);
@@ -2000,6 +2069,7 @@ static void ShowHelp()
     Console.WriteLine("");
     Console.WriteLine("Commands:");
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
+    Console.WriteLine("  ai-platform status           Show quick operational platform status");
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
@@ -2039,6 +2109,8 @@ static string FormatSummaryItems(IReadOnlyList<string> items)
 sealed class PlatformConfig
 {
     public string? PlatformVersion { get; set; }
+    public string? TemplateSourceZip { get; set; }
+    public List<string> ManagedArtifacts { get; set; } = new();
     public List<string> RequiredTemplatePaths { get; set; } = new();
     public TaskPathConfig TaskPaths { get; set; } = new();
     public WorkerConfig Worker { get; set; } = new();
@@ -2059,11 +2131,15 @@ sealed class PlatformConfig
             {
                 Pending = "ai/tasks/pending",
                 InProgress = "ai/tasks/in-progress",
+                Review = "ai/tasks/review",
+                Blocked = "ai/tasks/blocked",
+                Obsolete = "ai/tasks/obsolete",
                 Done = "ai/tasks/done"
             },
             Worker = new WorkerConfig
             {
-                LockFile = "ai/worker.lock"
+                LockFile = "ai/worker.lock",
+                PollIntervalSeconds = 30
             }
         };
     }
@@ -2104,6 +2180,24 @@ sealed class PlatformConfig
                 normalized.TaskPaths.Done = defaults.TaskPaths.Done;
                 fallbackKeys.Add("taskPaths.done");
             }
+
+            if (normalized.TaskPaths.Review is null)
+            {
+                normalized.TaskPaths.Review = defaults.TaskPaths.Review;
+                fallbackKeys.Add("taskPaths.review");
+            }
+
+            if (normalized.TaskPaths.Blocked is null)
+            {
+                normalized.TaskPaths.Blocked = defaults.TaskPaths.Blocked;
+                fallbackKeys.Add("taskPaths.blocked");
+            }
+
+            if (normalized.TaskPaths.Obsolete is null)
+            {
+                normalized.TaskPaths.Obsolete = defaults.TaskPaths.Obsolete;
+                fallbackKeys.Add("taskPaths.obsolete");
+            }
         }
 
         if (normalized.Worker is null)
@@ -2111,10 +2205,19 @@ sealed class PlatformConfig
             normalized.Worker = defaults.Worker;
             fallbackKeys.Add("worker");
         }
-        else if (normalized.Worker.LockFile is null)
+        else
         {
-            normalized.Worker.LockFile = defaults.Worker.LockFile;
-            fallbackKeys.Add("worker.lockFile");
+            if (normalized.Worker.LockFile is null)
+            {
+                normalized.Worker.LockFile = defaults.Worker.LockFile;
+                fallbackKeys.Add("worker.lockFile");
+            }
+
+            if (normalized.Worker.PollIntervalSeconds <= 0)
+            {
+                normalized.Worker.PollIntervalSeconds = defaults.Worker.PollIntervalSeconds;
+                fallbackKeys.Add("worker.pollIntervalSeconds");
+            }
         }
 
         normalized.PlatformVersion ??= defaults.PlatformVersion;
@@ -2132,8 +2235,12 @@ sealed class PlatformConfig
             "requiredTemplatePaths",
             "taskPaths.pending",
             "taskPaths.inProgress",
+            "taskPaths.review",
+            "taskPaths.blocked",
+            "taskPaths.obsolete",
             "taskPaths.done",
             "worker.lockFile"
+            ,"worker.pollIntervalSeconds"
         };
     }
 }
@@ -2142,17 +2249,23 @@ sealed class TaskPathConfig
 {
     public string? Pending { get; set; } = "ai/tasks/pending";
     public string? InProgress { get; set; } = "ai/tasks/in-progress";
+    public string? Review { get; set; } = "ai/tasks/review";
+    public string? Blocked { get; set; } = "ai/tasks/blocked";
+    public string? Obsolete { get; set; } = "ai/tasks/obsolete";
     public string? Done { get; set; } = "ai/tasks/done";
 }
 
 sealed class WorkerConfig
 {
     public string? LockFile { get; set; } = "ai/worker.lock";
+    public int PollIntervalSeconds { get; set; } = 30;
 }
 
 sealed record TaskDirectorySummary(string Label, string Path, bool Exists, int MarkdownTaskCount);
 
 sealed record OptionalConfigValues(string ManagedArtifacts, string TemplateSource);
+
+sealed record RefreshSourceInfo(string Source, string Selection);
 
 sealed record RoadmapItem(string Id, string Title, string Status);
 

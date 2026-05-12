@@ -6,6 +6,8 @@ A spec does not mean the command is implemented. Existing commands are the behav
 
 These specs connect roadmap phases, team ownership, and task workflow. Future CLI work should read the relevant spec, preserve its safety rules, and update the spec when behavior changes.
 
+Operational commands such as `status` and `doctor` are implemented in the CLI, but they are not part of the roadmap-driven command spec set in this folder.
+
 | Command | Status | Primary team | Purpose | Mutates files? | Output |
 |---|---|---|---|---|---|
 | `ai-platform analyze` | Implemented | Orchestration | Analyze repository/platform state | Writes report only | `ai/reports/project-analysis.md` |

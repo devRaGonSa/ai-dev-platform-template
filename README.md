@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -222,6 +222,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | Command | What it does | Status |
 |---|---|---|
 | `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
+| `ai-platform status` | Shows a quick operational platform summary from config and local essentials | Implemented |
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
@@ -245,6 +246,8 @@ Important note:
 `ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
 
 `ai-platform implement` v1 selects a pending task, validates basic metadata, can move it to `ai/tasks/in-progress`, and writes `ai/reports/implementation-prompt.md` for Codex. It does not execute Codex, implement code automatically, move tasks to `done`, commit, or push. The Codex execution step still must implement the task, validate it, commit, and push.
+
+`ai-platform status` is a quick operational view. It reports config loading, refresh source, managed artifacts, task paths, and a few local essentials. It is intentionally lighter than `doctor`, which remains the fuller readiness check.
 
 Examples:
 
@@ -478,6 +481,7 @@ Future command implementations should follow these specs and update them when be
 
 ```bash
 ai-platform init
+ai-platform status
 ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile

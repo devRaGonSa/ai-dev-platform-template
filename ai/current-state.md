@@ -7,6 +7,7 @@ This document describes the repository as it exists now.
 The .NET CLI currently implements:
 
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
+- `ai-platform status`: prints a quick operational summary from config and local essentials.
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
@@ -16,7 +17,7 @@ The .NET CLI currently implements:
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
 
-It does not implement `refresh` or `status`.
+It does not implement `refresh`.
 
 ## Existing configuration
 
@@ -51,9 +52,11 @@ There is no implemented `refresh` command. Future refresh behavior should be con
 
 ## Current status and doctor behavior
 
-`doctor` checks basic readiness: required directories, `AGENTS.md`, task paths, `.git`, and Codex availability.
+`status` provides a quick operational view: config load result, platform version, refresh source selection, managed artifacts, configured task paths, and a few local essentials.
 
-There is no separate `status` command. Some status-like information appears inside `doctor`, but status is not dedicated yet.
+`doctor` checks readiness in more detail: required directories, `AGENTS.md`, task paths, `.git`, and Codex availability.
+
+`status` is intentionally lighter than `doctor`. It is not a replacement for the fuller readiness checks.
 
 ## Existing documentation and workflow assets
 

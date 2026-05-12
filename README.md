@@ -245,6 +245,10 @@ Important note:
 
 `ai-platform refresh` v1 refreshes only the managed artifacts declared in `ai-platform.json`. It is a dry-run by default, requires `--apply` to write changes, supports `--source` to override the ZIP source, and resolves the source in this order: `--source`, `AI_PLATFORM_TEMPLATE_ZIP`, `templateSourceZip` from `ai-platform.json`, then the built-in default. It never deletes files, never touches tasks, and never creates commits or pushes.
 
+The default `managedArtifacts` list is intentionally fine-grained. By default it refreshes a small set of platform-owned files such as `AGENTS.md`, `ai-platform.json`, selected worker scripts, `.github/workflows/codex-worker.yml`, and `ai/task-template.md`. It does not refresh `ai/roadmap.md`, `ai/current-state.md`, `ai/project-memory/*`, `ai/tasks/*`, or generated files under `ai/reports/`.
+
+Consumer repositories can adapt `managedArtifacts` to match their own policy. `refresh` v1 still does not provide merge intelligence, backups, or rollback, so the default scope stays narrow on purpose.
+
 `ai-platform reconcile` is read-only except for creating or updating `ai/reports/task-reconciliation.md`. It detects task/roadmap reference issues and stale or weak pending task candidates. It does not move tasks, mark anything done, or replace future review behavior.
 
 `ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
@@ -392,7 +396,7 @@ Today it covers only a few things that are already useful:
 
 - `platformVersion`: lightweight template/config version marker
 - `templateSourceZip`: explicit default template ZIP source for install or future refresh-like flows
-- `managedArtifacts`: explicit list of platform-owned files and directories
+- `managedArtifacts`: explicit list of platform-owned artifacts refreshed by `ai-platform refresh`
 - `requiredTemplatePaths`: minimum paths a compatible template source must contain
 - `taskPaths`: default lifecycle directories for pending, in-progress, and done tasks
 - extended `taskPaths`: review, blocked, and obsolete directories for safer future workflows

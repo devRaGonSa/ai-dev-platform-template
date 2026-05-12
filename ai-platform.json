@@ -2,11 +2,12 @@
   "platformVersion": "1.0",
   "templateSourceZip": "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
   "managedArtifacts": [
-    "ai",
-    "scripts",
-    ".github",
     "AGENTS.md",
-    "ai-platform.json"
+    "ai-platform.json",
+    "scripts/codex-runner.ps1",
+    "scripts/run-integration-tests.ps1",
+    ".github/workflows/codex-worker.yml",
+    "ai/task-template.md"
   ],
   "requiredTemplatePaths": [
     "ai",

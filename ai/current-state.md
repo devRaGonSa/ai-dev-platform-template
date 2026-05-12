@@ -55,6 +55,8 @@ This remains the current automatic execution flow. `ai-platform implement` v1 pr
 
 With `--apply`, it creates or updates only managed artifacts that differ in the source. It never deletes local files, never touches tasks or reports, never executes Codex, and never creates commits or pushes.
 
+The current `managedArtifacts` scope is intentionally fine-grained rather than directory-wide. By default it targets specific files such as `AGENTS.md`, `ai-platform.json`, selected worker scripts, `.github/workflows/codex-worker.yml`, and `ai/task-template.md`. Consumer-specific state such as `ai/roadmap.md`, `ai/current-state.md`, `ai/project-memory/*`, `ai/tasks/*`, and generated reports is not refreshed by default.
+
 ## Current status and doctor behavior
 
 `status` provides a quick operational view: config load result, platform version, refresh source selection, managed artifacts, configured task paths, and a few local essentials.

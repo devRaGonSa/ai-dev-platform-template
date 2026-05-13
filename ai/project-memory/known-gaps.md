@@ -12,7 +12,7 @@ This file tracks functional gaps that are known but not yet implemented.
 - An explicit `task move` v1 exists, but richer integration between review outcomes and state transitions is still pending.
 - A conservative `refresh` v1 exists, but semantic versioning, backups or rollback, merge intelligence, and richer local or remote comparison are still pending.
 - `refresh` now uses a finer-grained managed artifact list by default, but future refresh behavior should still support profiles and per-artifact policies for consumer repositories.
-- A first read-only `review` command exists, but safe movement based on outcomes, implement integration, and deeper validation against real code changes are still pending.
+- A first read-only `review` command exists and recommends an explicit next `task move` command, but guided execution, automatic outcome application under controlled policies, implement integration, and deeper validation against real code changes are still pending.
 - Physical lifecycle directories for `review`, `blocked`, and `obsolete` exist, and an explicit move command now exists, but safe automated movement between states is still pending.
 - A basic documented team model exists, but there is no automatic routing or real multi-team execution.
 - The formal `review` state exists, but automated state transitions from review outcomes are still pending.

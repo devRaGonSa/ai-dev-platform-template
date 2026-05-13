@@ -143,7 +143,7 @@ It detects task counts, roadmap references, roadmap items with no task reference
 
 `ai-platform review` accepts `--task` or `--file`, reads one task Markdown file, checks expected metadata and sections, detects simple risk signals, and writes `ai/reports/task-review.md`.
 
-It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`, or `unknown`. It does not move tasks, modify the reviewed task, modify roadmap/current-state/known-gaps, execute Codex, call other commands, commit, push, download templates, or perform network operations.
+It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`, or `unknown`, and now prints an explicit recommended `ai-platform task move` command when the outcome maps to a safe next state. It does not execute that command, move tasks, modify the reviewed task, modify roadmap/current-state/known-gaps, execute Codex, call other commands, commit, push, download templates, or perform network operations.
 
 ## Current implement behavior
 

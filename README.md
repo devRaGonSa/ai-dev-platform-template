@@ -255,7 +255,7 @@ Consumer repositories can adapt `managedArtifacts` to match their own policy. `r
 
 `ai-platform reconcile` is read-only except for creating or updating `ai/reports/task-reconciliation.md`. It detects task/roadmap reference issues and stale or weak pending task candidates. It does not move tasks, mark anything done, or replace future review behavior.
 
-`ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
+`ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome and prints a recommended `ai-platform task move` command, but it does not move tasks, mark anything done, or execute follow-up actions. The recommended command must be run explicitly by a user or by Codex in a later controlled step.
 
 `ai-platform implement` v1 selects a pending task, validates basic metadata, can move it to `ai/tasks/in-progress`, and writes `ai/reports/implementation-prompt.md` for Codex. It does not execute Codex, implement code automatically, move tasks to `done`, commit, or push. The Codex execution step still must implement the task, validate it, commit, and push.
 
@@ -277,6 +277,8 @@ ai-platform refresh --apply
 ai-platform refresh --source https://example.com/template.zip
 ai-platform git-ignore --dry-run
 ai-platform git-ignore
+ai-platform review --task TASK-0019
+ai-platform task move --task TASK-0019 --to done
 ai-platform implement
 ai-platform implement --task TASK-0001
 ai-platform implement --dry-run

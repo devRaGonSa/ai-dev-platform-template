@@ -404,6 +404,8 @@ git rm -r --cached AGENTS.md ai-platform.json ai scripts/codex-runner.ps1 script
 
 `ai-platform git-ignore` does not run that command automatically. In consumer-local mode, update the local platform tooling with `ai-platform refresh --apply` when appropriate; `refresh` still never creates commits or pushes.
 
+A future physically isolated install model under `.ai-platform/` is now documented in `ai/design/isolated-consumer-install.md`. That model is not implemented yet; the current v1 consumer answer remains `consumer-local` plus `ai-platform git-ignore`.
+
 ### Compatibility checks
 
 `ai-platform doctor` validates the local repository after installation.

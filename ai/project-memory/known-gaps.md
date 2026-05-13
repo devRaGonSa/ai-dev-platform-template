@@ -21,8 +21,9 @@ This file tracks functional gaps that are known but not yet implemented.
 - A managed artifact inventory now exists in `ai-platform.json` and is used by conservative refresh, but it is not yet part of a complete upgrade workflow or a richer local-versus-remote diff policy.
 - There is no remote template versioning or upgrade policy.
 - There is no evidence-aware gate before `done`; future workflow automation should combine review findings, validation evidence, and explicit state movement safely.
-- Consumer-local installs now have an explicit `.gitignore` helper, but the platform is not yet isolated under a dedicated `.ai-platform/` layout.
+- Consumer-local installs now have an explicit `.gitignore` helper, but the platform is not yet isolated under a dedicated `.ai-platform/` layout; a preliminary design now exists in `ai/design/isolated-consumer-install.md`.
 - There are no install profiles yet for balancing source-managed and local-only artifacts.
+- There is no configurable path base such as `platformRoot`, and therefore no supported dual layout between root-based and isolated installs.
 - There is no automatic migration for platform files that were already tracked before switching to consumer-local.
 - Local tooling updates still lack full rollback, backup, and richer upgrade policy support.
 - `git-ignore` prepares ignore rules only; it does not run `git rm --cached` automatically.

@@ -74,6 +74,8 @@ The current `managedArtifacts` scope is intentionally fine-grained rather than d
 
 This template repository stays on `template-source`, so its AI platform files remain versioned. Consumer repositories can opt into `consumer-local`, then run `ai-platform git-ignore` explicitly to add or update the managed ignore block. The command supports `--dry-run`, never deletes files, and only prepares ignore rules; it does not automatically remove already tracked files from the Git index.
 
+An isolated consumer install under `.ai-platform/` is only a documented design direction at this stage. The current runtime, commands, and install paths still use the existing root-based model.
+
 ## Existing documentation and workflow assets
 
 The repository includes:
@@ -176,6 +178,7 @@ It updates a recognized internal `status` line when possible, refuses ambiguous 
 - deeper `implement` automation that executes Codex, validates implementation evidence, and integrates with review
 - deeper `refresh` behavior with backups, rollback, merge intelligence, and richer local/remote comparison
 - richer consumer-local install flows, including isolated layout, install profiles, and automated migration of already tracked tooling files
+- future path-base configuration and dual-mode compatibility if `.ai-platform/` becomes a supported runtime layout
 - safe automated state transitions based on review outcomes
 - multi-agent orchestration
 - template versioning or remote upgrade management

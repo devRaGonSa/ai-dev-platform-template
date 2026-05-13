@@ -33,3 +33,6 @@ This file records decisions that should guide future platform work.
 - The template source repository continues to version its AI platform files.
 - Consumer repositories may opt into local-only behavior through a managed `.gitignore` block.
 - v1 must not automatically untrack previously committed platform files; that remains an explicit Git decision.
+- Do not move the runtime into `.ai-platform/` yet.
+- Document isolated consumer install as a possible v2 evolution before changing path resolution or file layout.
+- Keep `consumer-local` plus `git-ignore` as the supported v1 local-tooling story.

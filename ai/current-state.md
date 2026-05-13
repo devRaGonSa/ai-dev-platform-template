@@ -149,7 +149,7 @@ It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`,
 
 `ai-platform implement` accepts optional `--task`, `--dry-run`, and `--no-move`. It selects the first pending task by name when no task is provided, validates basic task metadata, and writes `ai/reports/implementation-prompt.md`.
 
-Without `--dry-run` or `--no-move`, it moves the selected task from `ai/tasks/pending` to `ai/tasks/in-progress` without overwriting an existing destination file. It does not execute Codex, modify application code, move tasks to review/done/blocked/obsolete, call other commands, commit, push, download templates, or perform network operations.
+Without `--dry-run` or `--no-move`, it moves the selected task from `ai/tasks/pending` to `ai/tasks/in-progress` without overwriting an existing destination file. It now recommends the explicit next command to move the task to `review` after implementation and validation. It does not execute that command, execute Codex, modify application code, move tasks to review/done/blocked/obsolete, call other commands, commit, push, download templates, or perform network operations.
 
 ## Current task move behavior
 

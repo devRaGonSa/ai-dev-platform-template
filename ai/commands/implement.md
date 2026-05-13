@@ -26,7 +26,7 @@ Progressively replace `run` with a safer task implementation flow.
 
 - `ai/reports/implementation-prompt.md`
 - selected task moved from `pending` to `in-progress` when safe
-- console summary with warnings and next step guidance
+- console summary with warnings, next step guidance, and the recommended explicit `ai-platform task move --task TASK-xxxx --to review` command
 
 ## Task lifecycle
 
@@ -34,6 +34,7 @@ Progressively replace `run` with a safer task implementation flow.
 - In v1, only tasks in `pending` are eligible for selection.
 - In v1, move from `pending` to `in-progress` unless `--dry-run` or `--no-move` is used.
 - Generate an implementation prompt that includes the full task content.
+- Include the recommended next command for moving the task to `review` after implementation and validation.
 - Leave the actual implementation, validation, commit, and push to the Codex execution step.
 - Use `ai-platform task move` for explicit lifecycle changes beyond the initial `pending -> in-progress` move.
 - Move to `review` only through an explicit later action, not automatically in v1.
@@ -51,6 +52,7 @@ Progressively replace `run` with a safer task implementation flow.
 
 - `implement` v1 must not commit or push.
 - The generated prompt must remind Codex to commit scoped changes and push the branch after implementation.
+- The generated prompt must recommend moving the task to `review` after implementation and validation, not directly to `done`.
 - Do not commit generated build artifacts such as `bin/`, `obj/`, or packages.
 
 ## What it must not do
@@ -61,6 +63,7 @@ Progressively replace `run` with a safer task implementation flow.
 - Must not execute Codex directly in v1.
 - Must not implement application code automatically in v1.
 - Must not move tasks directly to `done`.
+- Must not move tasks automatically to `review`.
 - Must not close the lifecycle automatically.
 - Must not replace `run` until fully implemented and documented.
 - Must not skip the `review` barrier before `done` without explicit future policy.
@@ -71,4 +74,5 @@ Progressively replace `run` with a safer task implementation flow.
 - Supports `--task`, `--dry-run`, and `--no-move`.
 - Can move `pending` to `in-progress` without overwriting an existing destination task.
 - Generates an operational prompt with the full task content.
+- Recommends the explicit next task move command for review.
 - Does not execute Codex, move to `done`, or close the task lifecycle automatically.

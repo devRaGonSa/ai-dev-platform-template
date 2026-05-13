@@ -8,7 +8,7 @@ This file tracks functional gaps that are known but not yet implemented.
 - A first read-only `roadmap-status` command exists, but real reconciliation against code and tasks is still pending.
 - A first roadmap-driven `plan` command exists and generates one task per execution, but multi-task planning, deep analysis, and automatic team splitting are still pending.
 - A first read-only `reconcile` command exists, but smarter proposed changes, review/implement integration, and safe movement to review/blocked/obsolete are still pending.
-- A conservative `implement` v1 exists, but direct execution, review integration, deeper validation, and automatic cycle closure are still pending.
+- A conservative `implement` v1 exists and recommends the explicit next command to move a task to review after implementation, but direct execution, richer safe automation, deeper review-outcome integration, evidence checks against real code changes, and automatic cycle closure are still pending.
 - An explicit `task move` v1 exists, but richer integration between review outcomes and state transitions is still pending.
 - A conservative `refresh` v1 exists, but semantic versioning, backups or rollback, merge intelligence, and richer local or remote comparison are still pending.
 - `refresh` now uses a finer-grained managed artifact list by default, but future refresh behavior should still support profiles and per-artifact policies for consumer repositories.

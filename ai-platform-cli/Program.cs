@@ -767,6 +767,9 @@ static void RunImplement(string[] commandArgs)
         Console.WriteLine("Warnings:");
         PrintWarnings(warnings);
         Console.WriteLine("");
+        Console.WriteLine("Recommended next command after a real implementation:");
+        Console.WriteLine(BuildImplementRecommendedReviewCommand(taskInfo.TaskId));
+        Console.WriteLine("");
         Console.WriteLine("No files were changed.");
         return;
     }
@@ -802,6 +805,9 @@ static void RunImplement(string[] commandArgs)
     Console.WriteLine("");
     Console.WriteLine("Warnings:");
     PrintWarnings(warnings);
+    Console.WriteLine("");
+    Console.WriteLine("Recommended next command after implementation:");
+    Console.WriteLine(BuildImplementRecommendedReviewCommand(taskInfo.TaskId));
     Console.WriteLine("");
     Console.WriteLine(options.NoMove
         ? "Next step: review the generated prompt."
@@ -1692,12 +1698,27 @@ static string BuildImplementationPrompt(ImplementationTaskInfo task, string task
     builder.AppendLine("10. Commit with a clear message.");
     builder.AppendLine("11. Push the branch to the remote.");
     builder.AppendLine();
+    builder.AppendLine("## Recommended next command after implementation");
+    builder.AppendLine();
+    builder.AppendLine("After Codex finishes the implementation and validation, move the task to review with:");
+    builder.AppendLine();
+    builder.AppendLine("```bash");
+    builder.AppendLine(BuildImplementRecommendedReviewCommand(task.TaskId));
+    builder.AppendLine("```");
+    builder.AppendLine();
+    builder.AppendLine("Do not move the task directly to done. Run review before closing the task lifecycle.");
+    builder.AppendLine();
     builder.AppendLine("## Task content");
     builder.AppendLine();
     builder.AppendLine(taskText.TrimEnd());
     builder.AppendLine();
 
     return builder.ToString();
+}
+
+static string BuildImplementRecommendedReviewCommand(string taskId)
+{
+    return $"ai-platform task move --task {taskId} --to review";
 }
 
 static string NormalizeTaskId(string value)

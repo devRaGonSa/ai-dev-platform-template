@@ -711,6 +711,9 @@ static void RunReview(string[] commandArgs)
     Console.WriteLine("");
     Console.WriteLine($"Recommended outcome: {result.RecommendedOutcome}");
     Console.WriteLine("");
+    Console.WriteLine("Recommended command:");
+    Console.WriteLine(BuildReviewRecommendedNextCommand(result));
+    Console.WriteLine("");
     Console.WriteLine("Next step: review ai/reports/task-review.md");
 }
 
@@ -1975,6 +1978,18 @@ static List<string> BuildReviewRecommendations(string outcome, IReadOnlyList<str
     return recommendations.Distinct().ToList();
 }
 
+static string BuildReviewRecommendedNextCommand(TaskReviewResult result)
+{
+    return result.RecommendedOutcome switch
+    {
+        "ready-for-done" => $"ai-platform task move --task {result.TaskId} --to done",
+        "needs-rework" => $"ai-platform task move --task {result.TaskId} --to in-progress",
+        "blocked" => $"ai-platform task move --task {result.TaskId} --to blocked",
+        "obsolete-candidate" => $"ai-platform task move --task {result.TaskId} --to obsolete",
+        _ => "No command recommended; manually inspect the report first."
+    };
+}
+
 static string BuildTaskReviewReport(TaskReviewResult result)
 {
     var builder = new StringBuilder();
@@ -2009,6 +2024,10 @@ static string BuildTaskReviewReport(TaskReviewResult result)
     builder.AppendLine("## Recommended outcome");
     builder.AppendLine();
     builder.AppendLine(result.RecommendedOutcome);
+    builder.AppendLine();
+    builder.AppendLine("## Recommended next command");
+    builder.AppendLine();
+    builder.AppendLine(BuildReviewRecommendedNextCommand(result));
     builder.AppendLine();
     builder.AppendLine("## Recommendations");
     builder.AppendLine();

@@ -17,4 +17,4 @@ Operational commands such as `status`, `doctor`, `refresh`, and `git-ignore` are
 | `ai-platform plan` | First implementation | Product | Generate one roadmap-driven pending task | Yes, creates pending task | Task file and console summary |
 | `ai-platform reconcile` | First read-only implementation | Orchestration | Detect drift between roadmap, tasks, reports, and repo evidence | Writes report only | `ai/reports/task-reconciliation.md` |
 | `ai-platform implement` | First conservative implementation | Platform | Prepare one pending task for implementation | Yes, moves pending to in-progress and writes prompt | `ai/reports/implementation-prompt.md` |
-| `ai-platform review` | First read-only implementation | QA | Review one task before done | Writes report only | `ai/reports/task-review.md` |
+| `ai-platform review` | First read-only implementation | QA | Review one task before done and recommend the next explicit task move command | Writes report only | `ai/reports/task-review.md` |

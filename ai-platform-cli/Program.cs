@@ -55,6 +55,10 @@ switch (command)
         RunImplement(commandArgs);
         break;
 
+    case "task":
+        RunTaskCommand(commandArgs);
+        break;
+
     default:
         ShowHelp();
         break;
@@ -732,6 +736,178 @@ static void RunImplement(string[] commandArgs)
         : "Next step: open ai/reports/implementation-prompt.md and run it with Codex.");
 }
 
+static void RunTaskCommand(string[] commandArgs)
+{
+    if (commandArgs.Length == 0)
+    {
+        ShowTaskHelp();
+        return;
+    }
+
+    var subcommand = commandArgs[0];
+    var subcommandArgs = commandArgs.Skip(1).ToArray();
+
+    switch (subcommand)
+    {
+        case "move":
+            RunTaskMove(subcommandArgs);
+            break;
+        case "-h":
+        case "--help":
+            ShowTaskHelp();
+            break;
+        default:
+            Console.WriteLine($"Unknown task subcommand: {subcommand}");
+            Console.WriteLine("");
+            ShowTaskHelp();
+            break;
+    }
+}
+
+static void RunTaskMove(string[] commandArgs)
+{
+    TaskMoveOptions options;
+    try
+    {
+        options = ParseTaskMoveOptions(commandArgs);
+    }
+    catch (ArgumentException ex)
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine(ex.Message);
+        Console.WriteLine("");
+        ShowTaskMoveHelp();
+        return;
+    }
+
+    if (options.ShowHelp || string.IsNullOrWhiteSpace(options.TaskId) || string.IsNullOrWhiteSpace(options.TargetState))
+    {
+        ShowTaskMoveHelp();
+        return;
+    }
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var config = LoadPlatformConfig(rootPath).Config;
+    var targetState = NormalizeTaskStatus(options.TargetState);
+    if (!GetAllowedTaskMoveStates().Contains(targetState, StringComparer.OrdinalIgnoreCase))
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Unsupported target state: {options.TargetState}");
+        Console.WriteLine($"Allowed states: {string.Join(", ", GetAllowedTaskMoveStates())}");
+        return;
+    }
+
+    var matches = FindTaskLocations(config, options.TaskId);
+    if (matches.Count == 0)
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Task not found: {NormalizeTaskId(options.TaskId)}");
+        return;
+    }
+
+    if (matches.Count > 1)
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Task is ambiguous: {NormalizeTaskId(options.TaskId)}");
+        Console.WriteLine("The same task was found in multiple lifecycle states:");
+        foreach (var match in matches.OrderBy(match => match.DisplayPath, StringComparer.OrdinalIgnoreCase))
+            Console.WriteLine($"- {match.State}: {match.DisplayPath}");
+        Console.WriteLine("");
+        Console.WriteLine("Resolve the duplicate task locations before moving it.");
+        return;
+    }
+
+    var task = matches[0];
+    if (string.Equals(task.State, targetState, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine(options.DryRun ? "AI Platform Task Move dry run" : "AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Task: {task.TaskId}");
+        Console.WriteLine($"Current state: {task.State}");
+        Console.WriteLine($"Target state: {targetState}");
+        Console.WriteLine($"Source: {task.DisplayPath}");
+        Console.WriteLine($"Destination: {task.DisplayPath}");
+        Console.WriteLine("Task is already in the requested state.");
+        if (options.DryRun)
+        {
+            Console.WriteLine("");
+            Console.WriteLine("No files were changed.");
+        }
+        return;
+    }
+
+    var destinationRoot = GetTaskPathByState(config, targetState);
+    var destinationPath = Path.Combine(destinationRoot, Path.GetFileName(task.Path));
+    var destinationDisplayPath = NormalizeDisplayPath(destinationPath);
+    var requiresForce = RequiresForceForTaskMove(task.State, targetState);
+
+    var originalText = File.ReadAllText(task.Path);
+    var statusUpdate = UpdateTaskStatusMetadata(originalText, targetState);
+
+    if (!options.DryRun && requiresForce && !options.Force)
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Task: {task.TaskId}");
+        Console.WriteLine($"Current state: {task.State}");
+        Console.WriteLine($"Target state: {targetState}");
+        Console.WriteLine($"Source: {task.DisplayPath}");
+        Console.WriteLine($"Destination: {destinationDisplayPath}");
+        Console.WriteLine("");
+        Console.WriteLine("This move requires --force.");
+        Console.WriteLine("Use --dry-run first if you want to inspect the transition safely.");
+        return;
+    }
+
+    if (options.DryRun)
+    {
+        Console.WriteLine("AI Platform Task Move dry run");
+        Console.WriteLine("");
+        Console.WriteLine($"Task: {task.TaskId}");
+        Console.WriteLine($"Current state: {task.State}");
+        Console.WriteLine($"Target state: {targetState}");
+        Console.WriteLine($"Source: {task.DisplayPath}");
+        Console.WriteLine($"Destination: {destinationDisplayPath}");
+        Console.WriteLine($"Force required: {(requiresForce ? "yes" : "no")}");
+        Console.WriteLine($"Status metadata: {DescribeTaskStatusUpdate(statusUpdate, task.State, targetState, true)}");
+        Console.WriteLine("");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
+    Directory.CreateDirectory(destinationRoot);
+    if (File.Exists(destinationPath))
+    {
+        Console.WriteLine("AI Platform Task Move");
+        Console.WriteLine("");
+        Console.WriteLine($"Cannot move task because destination already exists: {destinationDisplayPath}");
+        Console.WriteLine("No files were changed.");
+        return;
+    }
+
+    if (statusUpdate.Updated)
+        File.WriteAllText(task.Path, statusUpdate.UpdatedText);
+
+    File.Move(task.Path, destinationPath);
+
+    Console.WriteLine("AI Platform Task Move");
+    Console.WriteLine("");
+    Console.WriteLine($"Task: {task.TaskId}");
+    Console.WriteLine($"Moved from: {task.State}");
+    Console.WriteLine($"Moved to: {targetState}");
+    Console.WriteLine($"Source: {task.DisplayPath}");
+    Console.WriteLine($"Destination: {destinationDisplayPath}");
+    Console.WriteLine($"Status metadata: {DescribeTaskStatusUpdate(statusUpdate, task.State, targetState, false)}");
+    if (requiresForce)
+        Console.WriteLine("Force: applied");
+    Console.WriteLine("");
+    Console.WriteLine(GetTaskMoveNextStep(targetState, task.TaskId));
+}
+
 static PlatformConfigLoadResult LoadPlatformConfig(string rootPath)
 {
     var configPath = Path.Combine(rootPath, "ai-platform.json");
@@ -805,6 +981,66 @@ static void ShowReviewHelp()
     Console.WriteLine("  ai-platform review --file ai/tasks/review/TASK-0001.md [--strict]");
     Console.WriteLine("");
     Console.WriteLine("If both --task and --file are provided, --file is used.");
+}
+
+static TaskMoveOptions ParseTaskMoveOptions(string[] args)
+{
+    var options = new TaskMoveOptions();
+
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        switch (arg)
+        {
+            case "--task":
+                options.TaskId = NormalizeTaskId(ReadOptionValue(args, ref index, arg));
+                break;
+            case "--to":
+                options.TargetState = NormalizeTaskStatus(ReadOptionValue(args, ref index, arg));
+                break;
+            case "--dry-run":
+                options.DryRun = true;
+                break;
+            case "--force":
+                options.Force = true;
+                break;
+            case "-h":
+            case "--help":
+                options.ShowHelp = true;
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown task move argument: {arg}");
+                break;
+        }
+    }
+
+    return options;
+}
+
+static void ShowTaskHelp()
+{
+    Console.WriteLine("AI Platform Task");
+    Console.WriteLine("");
+    Console.WriteLine("Subcommands:");
+    Console.WriteLine("  ai-platform task move   Move a task between lifecycle states");
+}
+
+static void ShowTaskMoveHelp()
+{
+    Console.WriteLine("AI Platform Task Move");
+    Console.WriteLine("");
+    Console.WriteLine("Moves one task between lifecycle states with explicit safety rules.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform task move --task TASK-0001 --to review [--dry-run] [--force]");
+    Console.WriteLine("");
+    Console.WriteLine("Allowed states:");
+    Console.WriteLine($"  {string.Join(", ", GetAllowedTaskMoveStates())}");
+    Console.WriteLine("");
+    Console.WriteLine("Notes:");
+    Console.WriteLine("  - --task and --to are required.");
+    Console.WriteLine("  - --force is required for dangerous transitions such as direct jumps to done outside review.");
+    Console.WriteLine("  - The command updates task status metadata when it finds a recognized status line.");
 }
 
 static RefreshOptions ParseRefreshOptions(string[] args)
@@ -1692,6 +1928,139 @@ static string GetNextTaskId(PlatformConfig config)
     return $"TASK-{max + 1:0000}";
 }
 
+static IReadOnlyList<string> GetAllowedTaskMoveStates()
+{
+    return new[]
+    {
+        "pending",
+        "in-progress",
+        "review",
+        "done",
+        "blocked",
+        "obsolete"
+    };
+}
+
+static List<TaskLocation> FindTaskLocations(PlatformConfig config, string taskId)
+{
+    var normalizedTaskId = NormalizeTaskId(taskId);
+    var taskRoots = new[]
+    {
+        ("pending", config.TaskPaths.Pending!),
+        ("in-progress", config.TaskPaths.InProgress!),
+        ("review", config.TaskPaths.Review!),
+        ("done", config.TaskPaths.Done!),
+        ("blocked", config.TaskPaths.Blocked!),
+        ("obsolete", config.TaskPaths.Obsolete!)
+    };
+    var matches = new List<TaskLocation>();
+
+    foreach (var (state, root) in taskRoots.Where(root => !string.IsNullOrWhiteSpace(root.Item2) && Directory.Exists(root.Item2)))
+    {
+        var candidates = Directory.GetFiles(root, "*.md", SearchOption.TopDirectoryOnly)
+            .Where(path => string.Equals(DetectTaskId(File.ReadAllText(path), path), normalizedTaskId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetFileNameWithoutExtension(path), normalizedTaskId, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        matches.AddRange(candidates.Select(path => new TaskLocation(
+            normalizedTaskId,
+            state,
+            path,
+            NormalizeDisplayPath(path))));
+    }
+
+    return matches;
+}
+
+static string GetTaskPathByState(PlatformConfig config, string state)
+{
+    return state switch
+    {
+        "pending" => config.TaskPaths.Pending!,
+        "in-progress" => config.TaskPaths.InProgress!,
+        "review" => config.TaskPaths.Review!,
+        "done" => config.TaskPaths.Done!,
+        "blocked" => config.TaskPaths.Blocked!,
+        "obsolete" => config.TaskPaths.Obsolete!,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), $"Unsupported task state: {state}")
+    };
+}
+
+static bool RequiresForceForTaskMove(string fromState, string toState)
+{
+    return !IsSafeTaskMove(fromState, toState);
+}
+
+static bool IsSafeTaskMove(string fromState, string toState)
+{
+    var normalizedFrom = NormalizeTaskStatus(fromState);
+    var normalizedTo = NormalizeTaskStatus(toState);
+
+    return (normalizedFrom, normalizedTo) switch
+    {
+        ("pending", "in-progress") => true,
+        ("in-progress", "review") => true,
+        ("review", "done") => true,
+        ("pending", "blocked") => true,
+        ("in-progress", "blocked") => true,
+        ("review", "blocked") => true,
+        ("pending", "obsolete") => true,
+        ("blocked", "pending") => true,
+        ("review", "in-progress") => true,
+        _ => false
+    };
+}
+
+static TaskStatusUpdateResult UpdateTaskStatusMetadata(string text, string targetState)
+{
+    foreach (var pattern in new[]
+    {
+        @"(?im)^(?<prefix>\s*-\s*\*\*Status:\*\*\s*)(?<value>.+?)\s*$",
+        @"(?im)^(?<prefix>\s*Status\s*:\s*)(?<value>.+?)\s*$",
+        @"(?im)^(?<prefix>\s*status\s*:\s*)(?<value>.+?)\s*$"
+    })
+    {
+        var match = Regex.Match(text, pattern);
+        if (!match.Success)
+            continue;
+
+        var originalValue = match.Groups["value"].Value.Trim().Trim('"', '\'', '`');
+        var regex = new Regex(pattern);
+        var updatedText = regex.Replace(text, m => $"{m.Groups["prefix"].Value}{targetState}", 1);
+
+        return new TaskStatusUpdateResult(true, updatedText, NormalizeTaskStatus(originalValue));
+    }
+
+    return new TaskStatusUpdateResult(false, text, null);
+}
+
+static string DescribeTaskStatusUpdate(TaskStatusUpdateResult update, string fromState, string targetState, bool dryRun)
+{
+    if (!update.Updated)
+        return "no recognized status line found";
+
+    var previousState = string.IsNullOrWhiteSpace(update.PreviousStatus)
+        ? fromState
+        : update.PreviousStatus;
+    return dryRun
+        ? $"would update from {previousState} to {targetState}"
+        : "updated";
+}
+
+static string GetTaskMoveNextStep(string targetState, string taskId)
+{
+    return targetState switch
+    {
+        "review" => $"Next step: run `ai-platform review --task {taskId}`.",
+        "in-progress" => "Next step: continue the implementation workflow for this task.",
+        "blocked" => "Next step: document the blocking dependency or decision clearly before resuming.",
+        "obsolete" => "Next step: keep the reason for obsolescence visible in the task history.",
+        "done" => "Next step: keep roadmap/current-state updated if this task completed a roadmap item.",
+        _ => "Next step: review the task state and continue the workflow deliberately."
+    };
+}
+
 static List<TaskFileInfo> ReadTaskFiles(PlatformConfig config)
 {
     var taskRoots = new[]
@@ -2457,6 +2826,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
     Console.WriteLine("  ai-platform review           Generate read-only task review report");
     Console.WriteLine("  ai-platform implement        Prepare a pending task for implementation");
+    Console.WriteLine("  ai-platform task move        Move a task between lifecycle states");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -2723,11 +3093,31 @@ sealed record ImplementationTaskInfo(
     bool HasValidation,
     bool HasCommitAndPush);
 
+sealed record TaskLocation(
+    string TaskId,
+    string State,
+    string Path,
+    string DisplayPath);
+
+sealed record TaskStatusUpdateResult(
+    bool Updated,
+    string UpdatedText,
+    string? PreviousStatus);
+
 sealed class ImplementOptions
 {
     public string? TaskId { get; set; }
     public bool DryRun { get; set; }
     public bool NoMove { get; set; }
+    public bool ShowHelp { get; set; }
+}
+
+sealed class TaskMoveOptions
+{
+    public string? TaskId { get; set; }
+    public string? TargetState { get; set; }
+    public bool DryRun { get; set; }
+    public bool Force { get; set; }
     public bool ShowHelp { get; set; }
 }
 

@@ -14,6 +14,7 @@ The .NET CLI currently implements:
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
 - `ai-platform review`: writes a read-only review report for one task to `ai/reports/task-review.md`.
 - `ai-platform implement`: v1 prepares one pending task for execution, can move it to in-progress, and writes `ai/reports/implementation-prompt.md`.
+- `ai-platform task move`: v1 moves one task explicitly between lifecycle states with conservative transition rules.
 - `ai-platform run`: starts `scripts/codex-runner.ps1`.
 - `ai-platform plan`: creates one roadmap-driven Markdown task in `ai/tasks/pending`.
 - `ai-platform doctor`: runs basic local readiness checks.
@@ -90,7 +91,7 @@ The repository defines an extended task lifecycle:
 - `ai/tasks/blocked`
 - `ai/tasks/obsolete`
 
-There is not yet complete automation for moving tasks between these states. `ai-platform reconcile` and `ai-platform review` remain read-only. `ai-platform implement` v1 only moves a selected pending task to in-progress.
+There is not yet complete automation for moving tasks between these states. `ai-platform reconcile` and `ai-platform review` remain read-only. `ai-platform implement` v1 only moves a selected pending task to in-progress, and `ai-platform task move` v1 performs explicit lifecycle moves without deciding them automatically.
 
 ## Current team model
 
@@ -139,6 +140,12 @@ It recommends `ready-for-done`, `needs-rework`, `blocked`, `obsolete-candidate`,
 `ai-platform implement` accepts optional `--task`, `--dry-run`, and `--no-move`. It selects the first pending task by name when no task is provided, validates basic task metadata, and writes `ai/reports/implementation-prompt.md`.
 
 Without `--dry-run` or `--no-move`, it moves the selected task from `ai/tasks/pending` to `ai/tasks/in-progress` without overwriting an existing destination file. It does not execute Codex, modify application code, move tasks to review/done/blocked/obsolete, call other commands, commit, push, download templates, or perform network operations.
+
+## Current task move behavior
+
+`ai-platform task move` accepts `--task`, `--to`, optional `--dry-run`, and optional `--force`. It looks for a single matching task across `pending`, `in-progress`, `review`, `done`, `blocked`, and `obsolete`, then moves only that task file to the configured destination state.
+
+It updates a recognized internal `status` line when possible, refuses ambiguous matches, and blocks dangerous transitions unless `--force` is provided. It does not execute Codex, review, implement, commit, push, or modify application code.
 
 ## Known limitations
 

@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -230,6 +230,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
 | `ai-platform review` | Reviews one task and writes a read-only report at `ai/reports/task-review.md` | Implemented |
 | `ai-platform implement` | Prepares one pending task for implementation and writes `ai/reports/implementation-prompt.md` | v1 implemented |
+| `ai-platform task move` | Moves one task between lifecycle states with explicit safety rules | v1 implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -255,6 +256,10 @@ Consumer repositories can adapt `managedArtifacts` to match their own policy. `r
 
 `ai-platform implement` v1 selects a pending task, validates basic metadata, can move it to `ai/tasks/in-progress`, and writes `ai/reports/implementation-prompt.md` for Codex. It does not execute Codex, implement code automatically, move tasks to `done`, commit, or push. The Codex execution step still must implement the task, validate it, commit, and push.
 
+`ai-platform task move` provides the explicit state transition step beyond `implement` v1. It accepts `--task`, `--to`, optional `--dry-run`, and optional `--force`. It moves only the selected task file inside `ai/tasks/*`, updates a recognized internal `status` line when possible, does not run review or implementation for you, and does not create commits or pushes.
+
+Safe moves without `--force` are intentionally narrow in v1: `pending -> in-progress`, `in-progress -> review`, `review -> done`, `pending -> blocked`, `in-progress -> blocked`, `review -> blocked`, `pending -> obsolete`, `blocked -> pending`, and `review -> in-progress`. Higher-risk transitions such as direct jumps to `done` outside `review`, or reopening `done`/`obsolete`, require `--force`.
+
 `ai-platform status` is a quick operational view. It reports config loading, refresh source, managed artifacts, task paths, and a few local essentials. It is intentionally lighter than `doctor`, which remains the fuller readiness check.
 
 Generated reports under `ai/reports/` are local outputs. Keep `ai/reports/.gitkeep`, but do not commit generated files such as `project-analysis.md`, `roadmap-status.md`, `task-reconciliation.md`, `task-review.md`, or `implementation-prompt.md`.
@@ -271,6 +276,10 @@ ai-platform implement
 ai-platform implement --task TASK-0001
 ai-platform implement --dry-run
 ai-platform implement --task TASK-0001 --no-move
+ai-platform task move --task TASK-0001 --to review
+ai-platform task move --task TASK-0001 --to done
+ai-platform task move --task TASK-0001 --to done --force
+ai-platform task move --task TASK-0001 --to blocked --dry-run
 ```
 
 By default, `ai-platform init` downloads this template from the repository's current GitHub ZIP URL. You can also pass a ZIP URL explicitly or set `AI_PLATFORM_TEMPLATE_ZIP` to point at another compatible source.
@@ -503,6 +512,7 @@ ai-platform roadmap-status
 ai-platform reconcile
 ai-platform review --task TASK-0001
 ai-platform implement --task TASK-0001
+ai-platform task move --task TASK-0001 --to review
 ai-platform doctor
 ai-platform run
 ai-platform plan

@@ -25,3 +25,7 @@ This file records decisions that should guide future platform work.
 - Treat `review` as the barrier before `done`.
 - Use `blocked` and `obsolete` to avoid executing tasks that are not actionable or no longer valid.
 - Future automation must not jump directly from `pending` to `done` without validation.
+- Separate analysis (`review`) from action (`task move`) in the CLI workflow.
+- Require an explicit command to move tasks between lifecycle states.
+- Require `--force` for dangerous jumps such as reopening `done` or skipping directly to `done`.
+- Future automation must not move tasks between states without clear lifecycle rules.

@@ -35,7 +35,8 @@ Progressively replace `run` with a safer task implementation flow.
 - In v1, move from `pending` to `in-progress` unless `--dry-run` or `--no-move` is used.
 - Generate an implementation prompt that includes the full task content.
 - Leave the actual implementation, validation, commit, and push to the Codex execution step.
-- Move to `review` only in a future implementation/review workflow.
+- Use `ai-platform task move` for explicit lifecycle changes beyond the initial `pending -> in-progress` move.
+- Move to `review` only through an explicit later action, not automatically in v1.
 - Use `blocked` when a concrete dependency prevents progress.
 - Use `obsolete` only when an explicit review/reconciliation decision says the task should not be executed.
 - Do not close directly to `done` unless a future explicit policy allows it.

@@ -35,6 +35,7 @@ Review implemented task work before it is marked done.
 - Must review acceptance criteria and changed files.
 - Must identify risks, missing tests, and documentation drift.
 - Must not approve high-risk changes automatically without evidence.
+- Must not move tasks automatically; `ai-platform task move` is the explicit lifecycle action.
 - Should not move tasks to `done` without an explicit policy and sufficient evidence.
 - Should treat `review` as the normal state before `done`.
 - May recommend `blocked` or `obsolete` instead of `done` when the task is not safely completable.

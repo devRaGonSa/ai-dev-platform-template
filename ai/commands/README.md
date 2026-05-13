@@ -8,6 +8,8 @@ These specs connect roadmap phases, team ownership, and task workflow. Future CL
 
 Operational commands such as `status`, `doctor`, and `refresh` are implemented in the CLI, but they are not part of the roadmap-driven command spec set in this folder.
 
+`ai-platform task move` is also implemented as an operational lifecycle command. It explicitly moves one task between configured lifecycle states, updates task status metadata when possible, and keeps state transitions separate from read-only review and implementation preparation.
+
 | Command | Status | Primary team | Purpose | Mutates files? | Output |
 |---|---|---|---|---|---|
 | `ai-platform analyze` | Implemented | Orchestration | Analyze repository/platform state | Writes report only | `ai/reports/project-analysis.md` |

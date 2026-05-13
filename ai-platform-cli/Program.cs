@@ -23,6 +23,10 @@ switch (command)
         RunRefresh(commandArgs);
         break;
 
+    case "git-ignore":
+        RunGitIgnore(commandArgs);
+        break;
+
     case "run":
         RunScript("scripts/codex-runner.ps1");
         break;
@@ -203,6 +207,8 @@ static void RunDoctor()
 {
     var configResult = LoadPlatformConfig(Directory.GetCurrentDirectory());
     var config = configResult.Config;
+    var shouldRecommendGitIgnore = IsConsumerLocalInstallMode(config.InstallMode)
+        && !HasManagedGitIgnoreBlock(Directory.GetCurrentDirectory());
     var checks = new List<(string Label, bool Passed, string Help)>
     {
         ("ai-platform.json", File.Exists("ai-platform.json"), "Run: ai-platform init to install the platform config file."),
@@ -238,6 +244,14 @@ static void RunDoctor()
         Console.WriteLine("Platform ready.");
     else
         Console.WriteLine("Platform is not ready. Fix missing items and run `ai-platform doctor` again.");
+
+    if (shouldRecommendGitIgnore)
+    {
+        Console.WriteLine("");
+        Console.WriteLine("Recommendation:");
+        Console.WriteLine("- consumer-local install mode is configured, but .gitignore does not contain the managed AI tooling block.");
+        Console.WriteLine("  Run `ai-platform git-ignore` after reviewing the intended local-only scope.");
+    }
 }
 
 static void RunStatus()
@@ -251,6 +265,7 @@ static void RunStatus()
     Console.WriteLine("");
     Console.WriteLine($"- Config: {configResult.Status}");
     Console.WriteLine($"- Platform version: {FormatOptionalValue(config.PlatformVersion)}");
+    Console.WriteLine($"- Install mode: {FormatOptionalValue(config.InstallMode)}");
     Console.WriteLine($"- Worker lock file: {FormatOptionalValue(config.Worker.LockFile)}");
     Console.WriteLine($"- Refresh source: {refreshSource.Source}");
     Console.WriteLine($"- Refresh source selection: {refreshSource.Selection}");
@@ -263,6 +278,60 @@ static void RunStatus()
     PrintStatusCheck(".git", Directory.Exists(".git"));
     Console.WriteLine("");
     Console.WriteLine("Next step: run `ai-platform doctor` for full validation, or `ai-platform analyze` for a project report.");
+}
+
+static void RunGitIgnore(string[] commandArgs)
+{
+    var options = ParseGitIgnoreOptions(commandArgs);
+    if (options.ShowHelp)
+        return;
+
+    var rootPath = Directory.GetCurrentDirectory();
+    var config = LoadPlatformConfig(rootPath).Config;
+    var gitIgnorePath = Path.Combine(rootPath, ".gitignore");
+    var existingContent = File.Exists(gitIgnorePath) ? File.ReadAllText(gitIgnorePath) : "";
+    var managedBlock = BuildManagedGitIgnoreBlock();
+    var update = BuildGitIgnoreUpdate(existingContent, managedBlock);
+
+    Console.WriteLine(options.DryRun ? "AI Platform Git Ignore dry run" : "AI Platform Git Ignore");
+    Console.WriteLine("");
+    Console.WriteLine($"Install mode: {FormatOptionalValue(config.InstallMode)}");
+    Console.WriteLine(".gitignore: .gitignore");
+    Console.WriteLine($"Action: {update.Action}");
+    Console.WriteLine("");
+
+    if (options.DryRun)
+    {
+        Console.WriteLine(update.Action switch
+        {
+            "unchanged" => "Managed block is already up to date.",
+            "update" => "Would update the managed AI DEV PLATFORM LOCAL TOOLING block.",
+            _ => "Would add the managed AI DEV PLATFORM LOCAL TOOLING block."
+        });
+        Console.WriteLine("");
+        Console.WriteLine("No files were changed.");
+    }
+    else if (update.Action == "unchanged")
+    {
+        Console.WriteLine("Managed AI DEV PLATFORM LOCAL TOOLING block is already up to date.");
+    }
+    else
+    {
+        File.WriteAllText(gitIgnorePath, update.UpdatedContent);
+        Console.WriteLine(update.Action == "update"
+            ? "Updated the managed AI DEV PLATFORM LOCAL TOOLING block."
+            : "Added the managed AI DEV PLATFORM LOCAL TOOLING block.");
+    }
+
+    Console.WriteLine("");
+    Console.WriteLine("Already tracked files:");
+    Console.WriteLine("If these platform files are already tracked by Git, .gitignore alone is not enough.");
+    Console.WriteLine("To stop tracking them without deleting local files, review and run:");
+    Console.WriteLine("git rm -r --cached AGENTS.md ai-platform.json ai scripts/codex-runner.ps1 scripts/run-integration-tests.ps1 .github/workflows/codex-worker.yml ai-platform-cli");
+    Console.WriteLine("");
+    Console.WriteLine(options.DryRun
+        ? "Next step: rerun without `--dry-run` in a consumer repository when you want to apply the ignore block."
+        : "Next step: review `.gitignore`, then decide whether tracked AI tooling should be removed from the Git index.");
 }
 
 static void RunRefresh(string[] commandArgs)
@@ -1017,6 +1086,44 @@ static TaskMoveOptions ParseTaskMoveOptions(string[] args)
     return options;
 }
 
+static GitIgnoreOptions ParseGitIgnoreOptions(string[] args)
+{
+    var options = new GitIgnoreOptions();
+
+    foreach (var arg in args)
+    {
+        switch (arg)
+        {
+            case "--dry-run":
+                options.DryRun = true;
+                break;
+            case "-h":
+            case "--help":
+                options.ShowHelp = true;
+                break;
+            default:
+                Console.WriteLine($"Ignoring unknown git-ignore argument: {arg}");
+                break;
+        }
+    }
+
+    if (options.ShowHelp)
+        ShowGitIgnoreHelp();
+
+    return options;
+}
+
+static void ShowGitIgnoreHelp()
+{
+    Console.WriteLine("AI Platform Git Ignore");
+    Console.WriteLine("");
+    Console.WriteLine("Adds or updates the managed AI DEV PLATFORM LOCAL TOOLING block in .gitignore.");
+    Console.WriteLine("Use this explicitly in consumer repositories that want platform tooling to remain local.");
+    Console.WriteLine("");
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  ai-platform git-ignore [--dry-run]");
+}
+
 static void ShowTaskHelp()
 {
     Console.WriteLine("AI Platform Task");
@@ -1072,6 +1179,73 @@ static RefreshOptions ParseRefreshOptions(string[] args)
         ShowRefreshHelp();
 
     return options;
+}
+
+static GitIgnoreUpdate BuildGitIgnoreUpdate(string existingContent, string managedBlock)
+{
+    const string beginMarker = "# BEGIN AI DEV PLATFORM LOCAL TOOLING";
+    const string endMarker = "# END AI DEV PLATFORM LOCAL TOOLING";
+    var normalizedExisting = existingContent.Replace("\r\n", "\n");
+    var normalizedBlock = managedBlock.Replace("\r\n", "\n");
+    var beginIndex = normalizedExisting.IndexOf(beginMarker, StringComparison.Ordinal);
+    var endIndex = normalizedExisting.IndexOf(endMarker, StringComparison.Ordinal);
+
+    if (beginIndex >= 0 && endIndex >= beginIndex)
+    {
+        var endExclusive = endIndex + endMarker.Length;
+        var currentBlock = normalizedExisting[beginIndex..endExclusive];
+        if (string.Equals(currentBlock, normalizedBlock, StringComparison.Ordinal))
+            return new GitIgnoreUpdate("unchanged", existingContent);
+
+        var updated = normalizedExisting[..beginIndex]
+            + normalizedBlock
+            + normalizedExisting[endExclusive..];
+        return new GitIgnoreUpdate("update", RestorePlatformLineEndings(updated));
+    }
+
+    var prefix = string.IsNullOrWhiteSpace(existingContent)
+        ? ""
+        : existingContent.EndsWith(Environment.NewLine, StringComparison.Ordinal)
+            ? existingContent + Environment.NewLine
+            : existingContent + Environment.NewLine + Environment.NewLine;
+    return new GitIgnoreUpdate("add", prefix + managedBlock + Environment.NewLine);
+}
+
+static string BuildManagedGitIgnoreBlock()
+{
+    return string.Join(Environment.NewLine, new[]
+    {
+        "# BEGIN AI DEV PLATFORM LOCAL TOOLING",
+        "AGENTS.md",
+        "ai-platform.json",
+        "ai/",
+        "scripts/codex-runner.ps1",
+        "scripts/run-integration-tests.ps1",
+        ".github/workflows/codex-worker.yml",
+        "ai-platform-cli/",
+        "# END AI DEV PLATFORM LOCAL TOOLING"
+    });
+}
+
+static string RestorePlatformLineEndings(string content)
+{
+    return content.Replace("\n", Environment.NewLine);
+}
+
+static bool HasManagedGitIgnoreBlock(string rootPath)
+{
+    var gitIgnorePath = Path.Combine(rootPath, ".gitignore");
+    if (!File.Exists(gitIgnorePath))
+        return false;
+
+    var content = File.ReadAllText(gitIgnorePath);
+    return content.Contains("# BEGIN AI DEV PLATFORM LOCAL TOOLING", StringComparison.Ordinal)
+        && content.Contains("# END AI DEV PLATFORM LOCAL TOOLING", StringComparison.Ordinal);
+}
+
+static bool IsConsumerLocalInstallMode(string? installMode)
+{
+    return string.Equals(installMode, "consumer-local", StringComparison.OrdinalIgnoreCase);
 }
 
 static void ShowRefreshHelp()
@@ -2821,6 +2995,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform init [zip-url]   Install AI development platform");
     Console.WriteLine("  ai-platform status           Show quick operational platform status");
     Console.WriteLine("  ai-platform refresh          Refresh managed artifacts from a compatible template ZIP");
+    Console.WriteLine("  ai-platform git-ignore       Add or update the managed local-tooling .gitignore block");
     Console.WriteLine("  ai-platform analyze          Generate read-only project analysis report");
     Console.WriteLine("  ai-platform roadmap-status   Generate read-only roadmap status report");
     Console.WriteLine("  ai-platform reconcile        Generate read-only task reconciliation report");
@@ -2861,6 +3036,7 @@ static string FormatSummaryItems(IReadOnlyList<string> items)
 sealed class PlatformConfig
 {
     public string? PlatformVersion { get; set; }
+    public string? InstallMode { get; set; }
     public string? TemplateSourceZip { get; set; }
     public List<string> ManagedArtifacts { get; set; } = new();
     public List<string> RequiredTemplatePaths { get; set; } = new();
@@ -2872,14 +3048,16 @@ sealed class PlatformConfig
         return new PlatformConfig
         {
             PlatformVersion = "1.0",
+            InstallMode = "template-source",
             TemplateSourceZip = "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
             ManagedArtifacts = new List<string>
             {
-                "ai",
-                "scripts",
-                ".github",
                 "AGENTS.md",
-                "ai-platform.json"
+                "ai-platform.json",
+                "scripts/codex-runner.ps1",
+                "scripts/run-integration-tests.ps1",
+                ".github/workflows/codex-worker.yml",
+                "ai/task-template.md"
             },
             RequiredTemplatePaths = new List<string>
             {
@@ -2997,6 +3175,10 @@ sealed class PlatformConfig
         if (config?.PlatformVersion is null)
             fallbackKeys.Add("platformVersion");
 
+        normalized.InstallMode ??= defaults.InstallMode;
+        if (config?.InstallMode is null)
+            fallbackKeys.Add("installMode");
+
         return normalized;
     }
 
@@ -3005,6 +3187,7 @@ sealed class PlatformConfig
         return new List<string>
         {
             "platformVersion",
+            "installMode",
             "templateSourceZip",
             "managedArtifacts",
             "requiredTemplatePaths",
@@ -3144,6 +3327,14 @@ sealed class RefreshOptions
     public string? Source { get; set; }
     public bool ShowHelp { get; set; }
 }
+
+sealed class GitIgnoreOptions
+{
+    public bool DryRun { get; set; }
+    public bool ShowHelp { get; set; }
+}
+
+sealed record GitIgnoreUpdate(string Action, string UpdatedContent);
 
 sealed class InstallSummary
 {

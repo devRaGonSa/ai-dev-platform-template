@@ -1,5 +1,6 @@
 {
   "platformVersion": "1.0",
+  "installMode": "template-source",
   "templateSourceZip": "https://github.com/devRaGonSa/ai-dev-platform-template/archive/refs/heads/main.zip",
   "managedArtifacts": [
     "AGENTS.md",

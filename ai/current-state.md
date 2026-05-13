@@ -9,6 +9,7 @@ The .NET CLI currently implements:
 - `ai-platform init`: downloads a compatible template ZIP and copies missing platform files.
 - `ai-platform status`: prints a quick operational summary from config and local essentials.
 - `ai-platform refresh`: v1 refreshes managed artifacts from a compatible template ZIP and defaults to dry-run.
+- `ai-platform git-ignore`: adds or updates the managed consumer-local `.gitignore` block explicitly.
 - `ai-platform analyze`: writes a read-only operational/documentation snapshot to `ai/reports/project-analysis.md`.
 - `ai-platform roadmap-status`: writes a deterministic read-only roadmap status report to `ai/reports/roadmap-status.md`.
 - `ai-platform reconcile`: writes a read-only task/roadmap consistency report to `ai/reports/task-reconciliation.md`.
@@ -26,6 +27,7 @@ It does not implement `version`.
 `ai-platform.json` currently defines:
 
 - `platformVersion`
+- `installMode`
 - `templateSourceZip`
 - `managedArtifacts`
 - `requiredTemplatePaths`
@@ -33,7 +35,7 @@ It does not implement `version`.
 - worker lock file path
 - worker polling interval
 
-The CLI uses it for compatibility checks, status output, and doctor output. Current CLI behavior still actively uses pending, in-progress, and done paths; review, blocked, and obsolete are structural lifecycle paths for future review/implement automation.
+The CLI uses it for compatibility checks, status output, doctor output, conservative refresh behavior, and consumer-local `.gitignore` guidance. Current CLI behavior still actively uses pending, in-progress, and done paths; review, blocked, and obsolete are structural lifecycle paths for future review/implement automation.
 
 ## Current worker
 
@@ -60,11 +62,17 @@ The current `managedArtifacts` scope is intentionally fine-grained rather than d
 
 ## Current status and doctor behavior
 
-`status` provides a quick operational view: config load result, platform version, refresh source selection, managed artifacts, configured task paths, and a few local essentials.
+`status` provides a quick operational view: config load result, platform version, install mode, refresh source selection, managed artifacts, configured task paths, and a few local essentials.
 
-`doctor` checks readiness in more detail: required directories, `AGENTS.md`, task paths, `.git`, and Codex availability.
+`doctor` checks readiness in more detail: required directories, `AGENTS.md`, task paths, `.git`, and Codex availability. When `installMode` is `consumer-local`, it can recommend adding the managed `.gitignore` block if it is missing.
 
 `status` is intentionally lighter than `doctor`. It is not a replacement for the fuller readiness checks.
+
+## Current install mode behavior
+
+`ai-platform.json` now distinguishes between `template-source` and `consumer-local`.
+
+This template repository stays on `template-source`, so its AI platform files remain versioned. Consumer repositories can opt into `consumer-local`, then run `ai-platform git-ignore` explicitly to add or update the managed ignore block. The command supports `--dry-run`, never deletes files, and only prepares ignore rules; it does not automatically remove already tracked files from the Git index.
 
 ## Existing documentation and workflow assets
 
@@ -158,6 +166,7 @@ It updates a recognized internal `status` line when possible, refuses ambiguous 
 - Git automation assumes pull, commit, and push are acceptable for the target repository.
 - There is no formal roadmap-to-task reconciliation yet.
 - The team model is documentation only; routing and execution are not automated.
+- Consumer-local installation is explicit and conservative; it prepares Git ignore rules, but it does not fully isolate the platform under a dedicated `.ai-platform/` directory yet.
 
 ## Not yet implemented
 
@@ -166,6 +175,7 @@ It updates a recognized internal `status` line when possible, refuses ambiguous 
 - deeper reconciliation that proposes smarter actions or integrates with review/implement
 - deeper `implement` automation that executes Codex, validates implementation evidence, and integrates with review
 - deeper `refresh` behavior with backups, rollback, merge intelligence, and richer local/remote comparison
+- richer consumer-local install flows, including isolated layout, install profiles, and automated migration of already tracked tooling files
 - safe automated state transitions based on review outcomes
 - multi-agent orchestration
 - template versioning or remote upgrade management

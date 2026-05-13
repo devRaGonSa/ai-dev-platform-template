@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `git-ignore`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -225,6 +225,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform init` | Downloads a template ZIP, then copies missing platform files into the current repository | Implemented |
 | `ai-platform status` | Shows a quick operational platform summary from config and local essentials | Implemented |
 | `ai-platform refresh` | Refreshes managed platform artifacts from a compatible template ZIP; dry-run by default | v1 implemented |
+| `ai-platform git-ignore` | Adds or updates the managed consumer-local `.gitignore` block | Implemented |
 | `ai-platform analyze` | Generates a read-only operational/documentation report at `ai/reports/project-analysis.md` | Implemented |
 | `ai-platform roadmap-status` | Generates a deterministic read-only roadmap status report at `ai/reports/roadmap-status.md` | Implemented |
 | `ai-platform reconcile` | Generates a read-only task/roadmap consistency report at `ai/reports/task-reconciliation.md` | Implemented |
@@ -250,6 +251,8 @@ The default `managedArtifacts` list is intentionally fine-grained. By default it
 
 Consumer repositories can adapt `managedArtifacts` to match their own policy. `refresh` v1 still does not provide merge intelligence, backups, or rollback, so the default scope stays narrow on purpose.
 
+`ai-platform git-ignore` is an explicit helper for consumer repositories that want the AI platform tooling to remain local instead of becoming part of the project history. It adds or updates a managed `.gitignore` block, supports `--dry-run`, does not delete files, and does not commit or push.
+
 `ai-platform reconcile` is read-only except for creating or updating `ai/reports/task-reconciliation.md`. It detects task/roadmap reference issues and stale or weak pending task candidates. It does not move tasks, mark anything done, or replace future review behavior.
 
 `ai-platform review` accepts `--task` or `--file`, validates one task mechanically, and writes `ai/reports/task-review.md`. It recommends an outcome but does not move tasks, mark anything done, or execute follow-up actions.
@@ -272,6 +275,8 @@ ai-platform plan --title "Add team routing metadata to tasks" --dry-run
 ai-platform refresh
 ai-platform refresh --apply
 ai-platform refresh --source https://example.com/template.zip
+ai-platform git-ignore --dry-run
+ai-platform git-ignore
 ai-platform implement
 ai-platform implement --task TASK-0001
 ai-platform implement --dry-run
@@ -361,6 +366,43 @@ If those real source files are not available, the installer falls back to its em
 6. Replace the integration test placeholder if integration tests are needed
 
 The template is meant to give you a starting point, not to eliminate repository-specific setup.
+
+### Template source vs consumer-local installs
+
+`ai-platform.json` now declares an `installMode`:
+
+- `template-source`: use this in the template repository itself, where AI platform files are intentionally versioned.
+- `consumer-local`: use this in consumer repositories when the AI platform should behave like local tooling that stays out of the application repo.
+
+This repository remains `template-source`. In a consumer repository, set `installMode` to `consumer-local`, then preview the ignore block:
+
+```bash
+ai-platform git-ignore --dry-run
+```
+
+Apply it only when the local-only policy is desired:
+
+```bash
+ai-platform git-ignore
+```
+
+The command manages this ignore scope:
+
+- `AGENTS.md`
+- `ai-platform.json`
+- `ai/`
+- `scripts/codex-runner.ps1`
+- `scripts/run-integration-tests.ps1`
+- `.github/workflows/codex-worker.yml`
+- `ai-platform-cli/`
+
+`.gitignore` only affects untracked files. If those platform files were already committed earlier, stop tracking them without deleting local copies by reviewing and running:
+
+```bash
+git rm -r --cached AGENTS.md ai-platform.json ai scripts/codex-runner.ps1 scripts/run-integration-tests.ps1 .github/workflows/codex-worker.yml ai-platform-cli
+```
+
+`ai-platform git-ignore` does not run that command automatically. In consumer-local mode, update the local platform tooling with `ai-platform refresh --apply` when appropriate; `refresh` still never creates commits or pushes.
 
 ### Compatibility checks
 
@@ -453,6 +495,7 @@ The root file `ai-platform.json` is a small, explicit configuration file for sta
 Today it covers only a few things that are already useful:
 
 - `platformVersion`: lightweight template/config version marker
+- `installMode`: whether the repository is the versioned template source or a consumer-local install
 - `templateSourceZip`: explicit default template ZIP source for install or future refresh-like flows
 - `managedArtifacts`: explicit list of platform-owned artifacts refreshed by `ai-platform refresh`
 - `requiredTemplatePaths`: minimum paths a compatible template source must contain
@@ -468,7 +511,7 @@ What it does not cover yet:
 - validation command definitions
 - workflow policy beyond a few stable path conventions
 
-The current CLI already reads this file for minimal compatibility checks, status, doctor output, and conservative refresh behavior, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
+The current CLI already reads this file for minimal compatibility checks, status, doctor output, consumer-local `.gitignore` guidance, and conservative refresh behavior, and the worker already uses it for `worker.lockFile`, `taskPaths.pending`, and `worker.pollIntervalSeconds` with safe fallback defaults. The platform is not yet fully driven by config.
 
 ---
 
@@ -556,6 +599,7 @@ Future command implementations should follow these specs and update them when be
 ai-platform init
 ai-platform status
 ai-platform refresh
+ai-platform git-ignore --dry-run
 ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile

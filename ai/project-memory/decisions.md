@@ -29,3 +29,7 @@ This file records decisions that should guide future platform work.
 - Require an explicit command to move tasks between lifecycle states.
 - Require `--force` for dangerous jumps such as reopening `done` or skipping directly to `done`.
 - Future automation must not move tasks between states without clear lifecycle rules.
+- The platform must support installation as local tooling inside consumer repositories.
+- The template source repository continues to version its AI platform files.
+- Consumer repositories may opt into local-only behavior through a managed `.gitignore` block.
+- v1 must not automatically untrack previously committed platform files; that remains an explicit Git decision.

@@ -397,7 +397,56 @@ This template no longer assumes that every repository will use ASP.NET Core MVC,
 
 ---
 
-## 14. Minimal platform config
+## 14. Windows build troubleshooting
+
+On Windows, this command can fail even when the CLI code itself is valid:
+
+```powershell
+dotnet build ai-platform-cli\ai-platform-cli.csproj
+```
+
+Typical symptom:
+
+- the build reports that `ai-platform-cli.exe` cannot be copied or deleted because it is locked by an active process.
+
+Likely causes:
+
+- a previous CLI execution is still alive
+- a terminal or tool still keeps the process open
+- Windows is still holding the generated apphost executable
+
+Recommended recovery steps:
+
+1. Close terminals or tools that may still be running the CLI.
+2. If needed, stop the process explicitly:
+
+```powershell
+taskkill /IM ai-platform-cli.exe /F
+```
+
+3. Run:
+
+```powershell
+dotnet clean ai-platform-cli\ai-platform-cli.csproj
+```
+
+4. Retry:
+
+```powershell
+dotnet build ai-platform-cli\ai-platform-cli.csproj
+```
+
+5. As a safe validation workaround, use:
+
+```powershell
+dotnet build ai-platform-cli\ai-platform-cli.csproj -p:UseAppHost=false
+```
+
+If `UseAppHost=false` compiles cleanly and the functional CLI commands still pass, the issue is usually an environment or executable lock problem, not necessarily a code defect.
+
+---
+
+## 15. Minimal platform config
 
 The root file `ai-platform.json` is a small, explicit configuration file for stable platform conventions.
 
@@ -423,7 +472,7 @@ The current CLI already reads this file for minimal compatibility checks, status
 
 ---
 
-## 15. Current limitations
+## 16. Current limitations
 
 - The worker and installer experience are PowerShell-first.
 - The CLI is implemented in .NET and `init` still defaults to this repository's ZIP source unless overridden.
@@ -435,7 +484,7 @@ The current CLI already reads this file for minimal compatibility checks, status
 
 ---
 
-## 16. Best practices
+## 17. Best practices
 
 - Keep tasks narrow, explicit, and validation-driven.
 - Use `Files to Read First` to constrain discovery work.
@@ -446,7 +495,7 @@ The current CLI already reads this file for minimal compatibility checks, status
 
 ---
 
-## 17. Suggested workflow for large features
+## 18. Suggested workflow for large features
 
 1. Create a dedicated branch using the repository's branch naming conventions
 2. Use orchestrator guidance to generate a small task set in `ai/tasks/pending`
@@ -457,7 +506,7 @@ The current CLI already reads this file for minimal compatibility checks, status
 
 ---
 
-## 18. Future improvements
+## 19. Future improvements
 
 These are future improvements, not claims about current behavior:
 
@@ -469,7 +518,7 @@ These are future improvements, not claims about current behavior:
 
 ---
 
-## 19. Roadmap and project memory
+## 20. Roadmap and project memory
 
 The platform now uses a roadmap as its direction source for future work.
 
@@ -481,7 +530,7 @@ Roadmap-driven commands are being implemented incrementally. The roadmap and mem
 
 ---
 
-## 20. Specialized team model
+## 21. Specialized team model
 
 The specialized team model lives under `ai/teams/`.
 
@@ -491,7 +540,7 @@ This is still documentation only. It does not add autonomous agents, automatic r
 
 ---
 
-## 21. Command specs
+## 22. Command specs
 
 Roadmap-driven command specs live under `ai/commands/`.
 

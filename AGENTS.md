@@ -147,6 +147,29 @@ Before completing a task:
 
 This prevents accidental modifications across the repository.
 
+## Codex exec completion summary
+
+When Codex CLI is executed through the non-interactive runner, it must write or overwrite:
+
+ai/status/latest-codex-summary.md
+
+The summary must be concise and include:
+
+- task processed
+- implementation status
+- files changed
+- validation commands and results
+- commit or branch information when available
+- follow-up notes or blockers
+
+The runner writes its own machine-readable and operational status files:
+
+- ai/status/latest-run.md
+- ai/status/latest-run.json
+- ai/status/latest-codex-output.log
+
+Codex App or another reviewer can read these files after the CLI process exits instead of trying to detect or inspect the Codex CLI process directly.
+
 ## Context Discovery
 
 Before implementing a task:

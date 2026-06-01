@@ -1,11 +1,11 @@
-Write-Host "Codex exec runner started..."
-
 [CmdletBinding()]
 param (
     [switch]$SkipGitPull,
     [switch]$NoCommitPush,
     [string]$Prompt = "Follow the workflow defined in AGENTS.md and process the first pending task. Use the repository rules, run the relevant validation commands, commit only when validation succeeds, and before finishing write or overwrite ai/status/latest-codex-summary.md with a concise implementation summary including task, files changed, validation, commit, and any follow-up notes."
 )
+
+Write-Host "Codex exec runner started..."
 
 $defaultLockFile = "ai/codex-exec.lock"
 $defaultPendingTaskPath = "ai/tasks/pending"
@@ -64,7 +64,7 @@ function Write-LatestRunStatus {
     param (
         [string]$Status,
         [string]$TaskName,
-        [Nullable[int]]$ExitCode,
+        [int]$ExitCode,
         [double]$DurationSeconds,
         [string]$CommitSha,
         [string]$Notes
@@ -123,8 +123,8 @@ $completedAt
 $lockFile = Get-PlatformConfigValue -Path "worker.codexExecLockFile" -DefaultValue $defaultLockFile
 $pendingTaskPath = Get-PlatformConfigValue -Path "taskPaths.pending" -DefaultValue $defaultPendingTaskPath
 
-Directory.CreateDirectory($statusDirectory) | Out-Null
-Directory.CreateDirectory($logsDirectory) | Out-Null
+[System.IO.Directory]::CreateDirectory($statusDirectory) | Out-Null
+[System.IO.Directory]::CreateDirectory($logsDirectory) | Out-Null
 
 if (-not (Test-CommandAvailable -CommandName "codex")) {
     Write-LatestRunStatus -Status "failed" -TaskName "none" -ExitCode 127 -DurationSeconds 0 -CommitSha "none" -Notes "Codex CLI was not found in PATH."
@@ -162,8 +162,7 @@ try {
     }
 
     Write-Host "Running Codex CLI in non-interactive exec mode for $($task.Name)..."
-    $codexArgs = @("exec", "--color", "never", "--ask-for-approval", "never", $Prompt)
-    & codex @codexArgs *> $latestCodexOutputPath
+    & codex exec $Prompt *> $latestCodexOutputPath
     $codexExitCode = $LASTEXITCODE
 
     Get-Content $latestCodexOutputPath -ErrorAction SilentlyContinue | Add-Content $runLogPath

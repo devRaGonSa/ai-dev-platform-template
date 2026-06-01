@@ -6,6 +6,7 @@
     "AGENTS.md",
     "ai-platform.json",
     "scripts/codex-runner.ps1",
+    "scripts/codex-exec-runner.ps1",
     "scripts/run-integration-tests.ps1",
     ".github/workflows/codex-worker.yml",
     "ai/task-template.md"
@@ -26,6 +27,7 @@
   },
   "worker": {
     "lockFile": "ai/worker.lock",
+    "codexExecLockFile": "ai/codex-exec.lock",
     "pollIntervalSeconds": 30
   }
 }

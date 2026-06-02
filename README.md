@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `git-ignore`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `git-ignore`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `codex-exec`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -232,12 +232,15 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform review` | Reviews one task and writes a read-only report at `ai/reports/task-review.md` | Implemented |
 | `ai-platform implement` | Prepares one pending task for implementation and writes `ai/reports/implementation-prompt.md` | v1 implemented |
 | `ai-platform task move` | Moves one task between lifecycle states with explicit safety rules | v1 implemented |
+| `ai-platform codex-exec` | Executes `scripts/codex-exec-runner.ps1` via PowerShell | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
 | `ai-platform version` | Not currently available | Not implemented |
 
 Important note:
+
+`ai-platform run` starts the existing polling worker flow. `ai-platform codex-exec` starts a single non-interactive `codex exec` run. Completion is reported through `ai/status/latest-run.json` and `ai/status/latest-codex-summary.md`.
 
 `ai-platform analyze` is read-only except for creating or updating `ai/reports/project-analysis.md`. It gives a simple operational snapshot of platform docs, task counts, roadmap markers, team docs, and command specs. It does not replace `doctor` and does not perform deep semantic analysis yet.
 

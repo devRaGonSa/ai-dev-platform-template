@@ -31,6 +31,10 @@ switch (command)
         RunScript("scripts/codex-runner.ps1");
         break;
 
+    case "codex-exec":
+        RunScript("scripts/codex-exec-runner.ps1");
+        break;
+
     case "plan":
         RunPlan(commandArgs);
         break;
@@ -3042,6 +3046,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform review           Generate read-only task review report");
     Console.WriteLine("  ai-platform implement        Prepare a pending task for implementation");
     Console.WriteLine("  ai-platform task move        Move a task between lifecycle states");
+    Console.WriteLine("  ai-platform codex-exec       Start a single non-interactive Codex exec run");
     Console.WriteLine("  ai-platform run              Start worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");

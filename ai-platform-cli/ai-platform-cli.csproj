@@ -1,9 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>ai_platform_cli</RootNamespace>
+    <AssemblyName>ai-platform</AssemblyName>
+    <PackageId>ai-platform</PackageId>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -13,7 +15,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-  <PackageReference Include="System.IO.Compression.ZipFile" Version="4.3.0" />
-</ItemGroup>
+    <PackageReference Include="System.IO.Compression.ZipFile" Version="4.3.0" />
+  </ItemGroup>
 
 </Project>

@@ -8,6 +8,7 @@
     "scripts/codex-runner.ps1",
     "scripts/codex-exec-runner.ps1",
     "scripts/task-watcher.ps1",
+    "scripts/update-platform.ps1",
     "scripts/install-local-cli.ps1",
     "scripts/run-integration-tests.ps1",
     ".github/workflows/codex-worker.yml",

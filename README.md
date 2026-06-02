@@ -42,7 +42,7 @@ The template is reusable, but not fully stack-agnostic in implementation details
 - **Tasks**: Markdown units of work following `ai/task-template.md`
 - **Orchestrator docs**: guidance under `ai/orchestrator/` used for planning, review, and dependency discovery
 - **Worker**: the loop in `scripts/codex-runner.ps1` that checks pending tasks and invokes Codex
-- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `git-ignore`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `codex-exec`, `watch`, `run`, `plan`, `doctor`)
+- **CLI**: the `ai-platform-cli` command surface (`init`, `status`, `refresh`, `git-ignore`, `analyze`, `roadmap-status`, `reconcile`, `review`, `implement`, `task move`, `codex-exec`, `watch`, `update`, `run`, `plan`, `doctor`)
 - **Template repository**: this repository
 - **Consumer repository**: a repository that installs or copies this platform
 - **Review loop**: when no pending tasks exist, the repository can generate improvement tasks for itself
@@ -234,6 +234,7 @@ The current CLI commands implemented in `ai-platform-cli/Program.cs` are:
 | `ai-platform task move` | Moves one task between lifecycle states with explicit safety rules | v1 implemented |
 | `ai-platform codex-exec` | Executes `scripts/codex-exec-runner.ps1` via PowerShell | Implemented |
 | `ai-platform watch` | Executes `scripts/task-watcher.ps1` via PowerShell | Implemented |
+| `ai-platform update` | Executes `scripts/update-platform.ps1` to update the platform safely for template or consumer repositories | Implemented |
 | `ai-platform run` | Executes `scripts/codex-runner.ps1` via PowerShell | Implemented |
 | `ai-platform plan` | Creates one roadmap-driven task file in `ai/tasks/pending` | Implemented |
 | `ai-platform doctor` | Validates basic platform readiness checks | Implemented |
@@ -254,6 +255,8 @@ Important note:
 The default `managedArtifacts` list is intentionally fine-grained. By default it refreshes a small set of platform-owned files such as `AGENTS.md`, `ai-platform.json`, selected worker scripts, `.github/workflows/codex-worker.yml`, and `ai/task-template.md`. It does not refresh `ai/roadmap.md`, `ai/current-state.md`, `ai/project-memory/*`, `ai/tasks/*`, or generated files under `ai/reports/`.
 
 Consumer repositories can adapt `managedArtifacts` to match their own policy. `refresh` v1 still does not provide merge intelligence, backups, or rollback, so the default scope stays narrow on purpose.
+
+`ai-platform update` runs `scripts/update-platform.ps1`. In the template repository, it performs `git pull`. In a client repository, it downloads the template ZIP and updates only the files listed in `managedArtifacts`; it does not run `git pull` for the client project and should not update unrelated project source code. The command writes status to `ai/status/latest-update.json`.
 
 `ai-platform git-ignore` is an explicit helper for consumer repositories that want the AI platform tooling to remain local instead of becoming part of the project history. It adds or updates a managed `.gitignore` block, supports `--dry-run`, does not delete files, and does not commit or push.
 
@@ -281,6 +284,7 @@ ai-platform refresh --apply
 ai-platform refresh --source https://example.com/template.zip
 ai-platform git-ignore --dry-run
 ai-platform git-ignore
+ai-platform update
 ai-platform review --task TASK-0019
 ai-platform task move --task TASK-0019 --to done
 ai-platform implement
@@ -608,6 +612,7 @@ ai-platform init
 ai-platform status
 ai-platform refresh
 ai-platform git-ignore --dry-run
+ai-platform update
 ai-platform analyze
 ai-platform roadmap-status
 ai-platform reconcile

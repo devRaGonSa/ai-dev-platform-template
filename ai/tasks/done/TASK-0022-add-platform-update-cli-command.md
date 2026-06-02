@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- status: pending
+- status: done
 - type: platform
 - priority: high
 - team: platform-cli

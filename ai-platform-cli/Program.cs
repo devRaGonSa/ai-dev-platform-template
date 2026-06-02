@@ -39,6 +39,10 @@ switch (command)
         RunScript("scripts/task-watcher.ps1");
         break;
 
+    case "update":
+        RunScript("scripts/update-platform.ps1");
+        break;
+
     case "plan":
         RunPlan(commandArgs);
         break;
@@ -3052,6 +3056,7 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform task move        Move a task between lifecycle states");
     Console.WriteLine("  ai-platform codex-exec       Start a single non-interactive Codex exec run");
     Console.WriteLine("  ai-platform watch            Start the local task watcher");
+    Console.WriteLine("  ai-platform update           Update platform-managed artifacts");
     Console.WriteLine("  ai-platform run              Start the polling worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
@@ -3105,6 +3110,7 @@ sealed class PlatformConfig
                 "AGENTS.md",
                 "ai-platform.json",
                 "scripts/codex-runner.ps1",
+                "scripts/update-platform.ps1",
                 "scripts/run-integration-tests.ps1",
                 ".github/workflows/codex-worker.yml",
                 "ai/task-template.md"

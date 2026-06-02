@@ -162,6 +162,21 @@ The summary must be concise and include:
 - commit or branch information when available
 - follow-up notes or blockers
 
+Use this structure when writing the validation section:
+
+```md
+## Validation
+
+- Build:
+- Build command:
+- Tests:
+- Test command:
+- Additional validation:
+- Not run reason:
+```
+
+If the user requested build, tests, compilation, or validation, include the commands used and the results in this section.
+
 The runner writes its own machine-readable and operational status files:
 
 - ai/status/latest-run.md

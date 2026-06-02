@@ -35,6 +35,10 @@ switch (command)
         RunScript("scripts/codex-exec-runner.ps1");
         break;
 
+    case "watch":
+        RunScript("scripts/task-watcher.ps1");
+        break;
+
     case "plan":
         RunPlan(commandArgs);
         break;
@@ -3047,7 +3051,8 @@ static void ShowHelp()
     Console.WriteLine("  ai-platform implement        Prepare a pending task for implementation");
     Console.WriteLine("  ai-platform task move        Move a task between lifecycle states");
     Console.WriteLine("  ai-platform codex-exec       Start a single non-interactive Codex exec run");
-    Console.WriteLine("  ai-platform run              Start worker");
+    Console.WriteLine("  ai-platform watch            Start the local task watcher");
+    Console.WriteLine("  ai-platform run              Start the polling worker");
     Console.WriteLine("  ai-platform plan             Plan feature tasks");
     Console.WriteLine("  ai-platform doctor           Validate repository readiness");
     Console.WriteLine("");

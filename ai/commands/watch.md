@@ -29,7 +29,7 @@ Useful options:
 - `-DebounceSeconds 3`
 - `-PollSeconds 10`
 
-Intended future CLI alias:
+CLI alias:
 
 ```text
 ai-platform watch

@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- status: in-progress
+- status: done
 - type: platform
 - priority: high
 - team: platform-cli
